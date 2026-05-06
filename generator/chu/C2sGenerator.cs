@@ -11,11 +11,11 @@ public class C2sGenerator : IGenerator<ChuChart>
     public (string, List<Alert>) Generate(ChuChart chart)
     {
         var alerts = new List<Alert>();
-        var text = Serialize(chart);
+        var text = Serialize(chart, alerts);
         return (text, alerts);
     }
 
-    private static string Serialize(ChuChart chart)
+    private static string Serialize(ChuChart chart, List<Alert> alerts)
     {
         chart.Sort();
         
@@ -58,13 +58,16 @@ public class C2sGenerator : IGenerator<ChuChart>
         sb.AppendLine();
 
         foreach (var n in chart.Notes)
-            sb.AppendLine(FormatNote(n, RSL));
+        {
+            var line = FormatNote(n, RSL, alerts);
+            if (line != null) sb.AppendLine(line);
+        }
 
         sb.AppendLine();
         return sb.ToString();
     }
 
-    private static string FormatNote(ChuNote n, int tpm)
+    private static string? FormatNote(ChuNote n, int tpm, List<Alert> alerts)
     {
         var (m, o) = Utils.BarAndTick(n.Time, tpm);
         var durTicks = Utils.Tick(n.Duration, tpm);
@@ -86,8 +89,14 @@ public class C2sGenerator : IGenerator<ChuChart>
             "ASD" or "ASC" => FormatAsdAsc(n, m, o, durTicks),
             "ALD" => FormatAld(n, m, o),
             "MNE" => $"MNE\t{m}\t{o}\t{n.Cell}\t{n.Width}",
-            _ => $"TAP\t{m}\t{o}\t{n.Cell}\t{n.Width}"
+            _ => alert(),
         };
+
+        string? alert()
+        {
+            alerts.Add(new Alert(Alert.LEVEL.Warning, Locale.C2SUnknownNoteType, n.Time));
+            return null;
+        }
     }
 
     private static string FormatAsdAsc(ChuNote n, int m, int o, int durTicks)

@@ -267,7 +267,7 @@ public class UgcParser : IParser<ChuChart>
             return idx;
         }
 
-        var note = new ChuNote
+        ChuNote? note = new ChuNote
         {
             Time = measure + new Rational(tick, RSL),
         };
@@ -277,7 +277,10 @@ public class UgcParser : IParser<ChuChart>
         switch (typeChar)
         {
             case 't':
-                ParseTapNote(code, note, alerts, lineNum, chart);
+                ParseTapNote(code, note, alerts, lineNum, chart, false);
+                break;
+            case 'x':
+                ParseTapNote(code, note, alerts, lineNum, chart, true);
                 break;
 
             case 'h':
@@ -286,14 +289,11 @@ public class UgcParser : IParser<ChuChart>
 
             case 's':
                 idx = ParseSlideNote(lines, idx, code, note, alerts, chart);
+                note = null; // ParseSlideNote中，会自己构造note并自己添加进chart。因此这里默认的统一note不应被添加进chart。
                 break;
 
             case 'a':
                 ParseAirNote(code, note, alerts, lineNum, chart);
-                break;
-
-            case 'x':
-                ParseChrNote(code, note, alerts, lineNum, chart);
                 break;
 
             case 'f':
@@ -303,8 +303,9 @@ public class UgcParser : IParser<ChuChart>
                     note.Tag = code[3..];
                 break;
 
-            case 'c':
-                return idx; // Margrete Air Crush, silently skip
+            case 'c': // Umiguri的CLICK音符，疑似在C2s中是没有对应的。这个音符没有Cell和Width，除了Type什么都没有，所以直接存下来就可以了。
+                note.Type = "CLICK";
+                break;
 
             case 'd':
                 note.Type = "MNE";
@@ -316,14 +317,20 @@ public class UgcParser : IParser<ChuChart>
                 return idx;
         }
 
-        chart.Notes.Add(note);
+        if (note != null) chart.Notes.Add(note);
         return idx;
     }
 
-    private static void ParseTapNote(string code, ChuNote note, List<Alert> alerts, int lineNum, ChuChart chart)
+    private static void ParseTapNote(string code, ChuNote note, List<Alert> alerts, int lineNum, ChuChart chart, bool isCHR)
     {
         note.Type = "TAP";
         ParseCellWidth(code, 1, note, alerts, lineNum, chart);
+        if (isCHR)
+        {
+            note.Type = "CHR";
+            var extraRaw = code.Length > 3 ? code[3..] : "";
+            note.Tag = ChrExtras.GetValueOrDefault(extraRaw, extraRaw);
+        }
     }
 
     private static int ParseHoldNote(string[] lines, int idx, string code, ChuNote note, List<Alert> alerts, ChuChart chart)
@@ -335,7 +342,7 @@ public class UgcParser : IParser<ChuChart>
         while (idx + 1 < lines.Length)
         {
             var nextLine = lines[idx + 1].Trim();
-            if (!TryParseFollowerLine(nextLine, out var duration, out _, out _))
+            if (!TryParseFollowerLine(nextLine, out _, out var duration, out _, out _))
             {
                 if (nextLine.StartsWith('\'') || nextLine.StartsWith('@')) { idx++; continue; }
                 break;
@@ -351,48 +358,59 @@ public class UgcParser : IParser<ChuChart>
         return idx;
     }
 
-    private static int ParseSlideNote(string[] lines, int idx, string code, ChuNote note, List<Alert> alerts, ChuChart chart)
+    private static int ParseSlideNote(string[] lines, int idx, string code, ChuNote previousNote, List<Alert> alerts, ChuChart chart)
     {
-        note.Type = "SLD";
-        ParseCellWidth(code, 1, note, alerts, idx + 1, chart);
+        // 注：一开始从外面传进来的previousNote，最后并不会被添加进chart里，只是作为第一段的起点参照而已。
+        var startTime = previousNote.Time;
+        ParseCellWidth(code, 1, previousNote, alerts, idx + 1, chart);
+        previousNote.EndCell = previousNote.Cell;
+        previousNote.EndWidth = previousNote.Width;
 
         bool foundFirst = false;
         while (idx + 1 < lines.Length)
-        {
+        { // 循环处理所有的跟随行。idx始终指向上一条已经处理完的行。
             var nextLine = lines[idx + 1].Trim();
-            if (!TryParseFollowerLine(nextLine, out var duration, out var endCell, out var endWidth))
+            if (!TryParseFollowerLine(nextLine, out var marker, out var duration, out var endCell, out var endWidth, true))
             {
                 if (nextLine.StartsWith('\'') || nextLine.StartsWith('@')) { idx++; continue; }
                 break;
             }
 
-            note.Duration += new Rational(duration, RSL);
-            note.EndCell = endCell;
-            note.EndWidth = endWidth;
+            var segmentEnd = startTime + new Rational(duration, RSL);
+            var note = new ChuNote
+            {
+                Type = marker == "s" ? "SLD" : "SLC", 
+                Time = previousNote.EndTime, Cell = previousNote.EndCell, Width = previousNote.EndWidth,
+                Duration = segmentEnd - previousNote.EndTime, 
+                EndCell = endCell, EndWidth = endWidth,
+                TargetNote = "SLD"
+            };
+            chart.Notes.Add(note);
+            previousNote = note;
             idx++;
             foundFirst = true;
         }
 
         if (!foundFirst)
-            alerts.Add(new Alert(Warning, $"SLD 音符缺少时长跟随行") { Line = idx + 1, RelevantNote = FormatNoteRef(note, chart) });
+            alerts.Add(new Alert(Warning, $"SLD 音符缺少时长跟随行") { Line = idx + 1, RelevantNote = FormatNoteRef(previousNote, chart) });
 
         return idx;
     }
     
-    private static bool TryParseFollowerLine(string line, out int duration, out int endCell, out int endWidth, bool requireEndCellWidth = false)
+    private static bool TryParseFollowerLine(string line, out string marker, out int duration, out int endCell, out int endWidth, bool requireEndCellWidth = false)
     {
         duration = 0;
         endCell = 0;
         endWidth = 1;
+        marker = "";
 
         if (!line.StartsWith('#')) return false;
 
         // support both >s (SLD) and >c (SLC) follower lines
-        int gtIdx = -1;
-        int markerLen = 0;
-        if (line.Contains(">s")) { gtIdx = line.IndexOf(">s", StringComparison.Ordinal); markerLen = 2; }
-        else if (line.Contains(">c")) { gtIdx = line.IndexOf(">c", StringComparison.Ordinal); markerLen = 2; }
+        int gtIdx = line.IndexOfAny(['>', ':']);
         if (gtIdx < 1) return false;
+        marker = line[gtIdx+1].ToString();
+        int markerLen = 2;
 
         var durationStr = line[1..gtIdx];
         if (!int.TryParse(durationStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out duration)) return false;
@@ -465,20 +483,6 @@ public class UgcParser : IParser<ChuChart>
             if (int.TryParse(durStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ahdDuration))
                 note.Duration = new Rational(ahdDuration, RSL);
         }
-    }
-
-    private static void ParseChrNote(string code, ChuNote note, List<Alert> alerts, int lineNum, ChuChart chart)
-    {
-        note.Type = "CHR";
-        if (code.Length < 3)
-        {
-            alerts.Add(new Alert(Warning, $"CHR 音符代码过短: {code}") { Line = lineNum });
-            return;
-        }
-
-        ParseCellWidth(code, 1, note, alerts, lineNum, chart);
-        var extraRaw = code.Length > 3 ? code[3..] : "";
-        note.Tag = ChrExtras.GetValueOrDefault(extraRaw, extraRaw);
     }
 
     private static int HexCharToInt(char c)
