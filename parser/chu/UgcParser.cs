@@ -358,7 +358,7 @@ public class UgcParser: BaseChuParser
         if (isAirHold)
         {
             var colorChar = code.Last(); // 颜色标记 N/I
-            note.Tag = AirColor[colorChar.ToString()];
+            note.Tag = AirColor.GetValueOrDefault(colorChar.ToString(), "");
         }
 
         bool foundFirst = false;
@@ -394,7 +394,7 @@ public class UgcParser: BaseChuParser
         if (isAirSlide)
         {
             var colorChar = code.Last(); // 颜色标记 N/I
-            colorTag = AirColor[colorChar.ToString()];
+            colorTag = AirColor.GetValueOrDefault(colorChar.ToString(), "");
             // 解析高度数据。目前只解析、不使用。
             TryParseUgcBase36Int2(code.AsSpan(3, code.Length - 4), out _); // out var startHeight 起始的高度值
         }

@@ -76,7 +76,8 @@ public class C2sParser: BaseChuParser
         switch (tag)
         {
             case "BPM":
-                chart.BpmList.Add(new BPM(Int(p, 1) + new Rational(Int(p, 2), RSL), decimal.Parse(p[3])));
+                chart.BpmList.Add(new BPM(Int(p, 1) + new Rational(Int(p, 2), RSL), 
+                    decimal.Parse(p[3], CultureInfo.InvariantCulture)));
                 break;
             case "MET":
                 chart.MetList.Add(new MET(Int(p, 1) + new Rational(Int(p, 2), RSL), Int(p, 4, 4), Int(p, 3, 4)));
@@ -85,7 +86,7 @@ public class C2sParser: BaseChuParser
                 chart.SflList.Add((
                     Int(p, 1) + new Rational(Int(p, 2), RSL),
                     new Rational(Int(p, 3), RSL),
-                    decimal.Parse(p[4])));
+                    decimal.Parse(p[4], CultureInfo.InvariantCulture)));
                 break;
         }
     }

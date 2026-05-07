@@ -160,13 +160,13 @@ return maidataText; // maidataText即为转谱结果
 var (c2sChart, alerts) = new C2sParser().Parse(c2sText); // 解析 C2S 谱面字符串
 var (ugcChart, alerts) = new UgcParser().Parse(ugcText); // 解析 UGC 谱面字符串
 var (susChart, alerts) = new SusParser().Parse(susText); // 解析 SUS 谱面字符串
-// 以上得到的c2sChart、ugcChart、susChart，都是IChuChart类型的谱面表示对象；
+// 以上得到的c2sChart、ugcChart、susChart，都是ChuChart类型的谱面表示对象；
 // alerts是解析过程中可能产生的警告信息等，建议打印出来。
 
 var (c2sText, alerts) = new C2sGenerator().Generate(ugcChart);   // UGC -> C2S
 var (ugcText, alerts) = new UgcGenerator().Generate(c2sChart);   // C2S -> UGC
 var (susText, alerts) = new SusGenerator().Generate(c2sChart);   // C2S -> SUS
-// 各种Generator的Generate方法，均接受任意的IChuChart对象。
+// 各种Generator的Generate方法，均接受 ChuChart（可将任一 Parser 产出的 ChuChart 互相传入）。
 // 同上，alerts是生成过程中可能产生的警告信息等，建议打印出来。
 ```
 
