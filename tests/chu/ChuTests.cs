@@ -47,6 +47,7 @@ public class ChuTests
     /// <summary>
     /// Builds a stable, comparable string from a note's public instance properties (name-sorted)
     /// so round-trip tests verify no field loss without hard-coding each property in the test.
+    /// Omits <see cref="ChuNote.ExtraData"/> and <see cref="ChuNote.EndTime"/> (redundant with Time/Duration or not stable across formats).
     /// </summary>
     private static string SnapshotNote(ChuNote note)
     {
@@ -60,9 +61,11 @@ public class ChuTests
 
         var propParts = typeof(ChuNote).GetProperties(BindingFlags.Instance | BindingFlags.Public)
             .OrderBy(p => p.Name)
+            .Where(p => p.Name != nameof(ChuNote.EndTime))
             .Select(p => $"{p.Name}={F(p.GetValue(note))}");
         var fieldParts = typeof(ChuNote).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
             .OrderBy(f => f.Name)
+            .Where(f => f.Name != nameof(ChuNote.ExtraData))
             .Select(f => $"{f.Name}={F(f.GetValue(note))}");
         return string.Join("|", propParts.Concat(fieldParts));
     }
@@ -114,20 +117,25 @@ public class ChuTests
     {
         if (isUgcReference)
         {
-            var ugcSnaps = ugc.Notes
-                .Where(n=>n.Type != "CLICK")
+            var ugcSnaps = ugc.Notes.Where(n=>n.Type != "CLICK")
+                .OrderBy(n=>n.Time).ThenBy(n=>n.Cell).ThenBy(n=>n.Width).ThenBy(n=>n.Duration).ThenBy(n=>n.Type)
                 .Select(n => SnapshotNote(UgcNoteScaledToC2sTicks(n, 480, 384)))
-                .OrderBy(s => s)
                 .ToArray();
-            var c2sSnaps = c2s.Notes.Select(SnapshotNote).OrderBy(s => s).ToArray();
+            var c2sSnaps = c2s.Notes
+                .OrderBy(n=>n.Time).ThenBy(n=>n.Cell).ThenBy(n=>n.Width).ThenBy(n=>n.Duration).ThenBy(n=>n.Type)
+                .Select(SnapshotNote)
+                .ToArray();
             Assert.Equal(ugcSnaps, c2sSnaps);
         }
         else
         {
-            var ugcSnaps = ugc.Notes.Select(SnapshotNote).OrderBy(s => s).ToArray();
+            var ugcSnaps = ugc.Notes.Where(n=>n.Type != "CLICK")
+                .OrderBy(n=>n.Time).ThenBy(n=>n.Cell).ThenBy(n=>n.Width).ThenBy(n=>n.Duration).ThenBy(n=>n.Type)
+                .Select(SnapshotNote)
+                .ToArray();
             var c2sSnaps = c2s.Notes
+                .OrderBy(n=>n.Time).ThenBy(n=>n.Cell).ThenBy(n=>n.Width).ThenBy(n=>n.Duration).ThenBy(n=>n.Type)
                 .Select(n => SnapshotNote(C2sNoteScaledToUgcTicks(n, 480, 384)))
-                .OrderBy(s => s)
                 .ToArray();
             Assert.Equal(c2sSnaps, ugcSnaps);
         }

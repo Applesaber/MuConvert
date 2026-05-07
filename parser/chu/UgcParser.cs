@@ -8,8 +8,7 @@ using static MuConvert.utils.Alert.LEVEL;
 namespace MuConvert.chu;
 
 /**
- * UGC 格式解析器（UMIGURI 格式，@TICKS=480 tick/拍）。
- * @HEADER 标签 + #measure'tick:code 音符格式。
+ * UMIGURI语法文档： https://gist.github.com/inonote/5c01e73781cab17765a1d93641d52298
  */
 public class UgcParser: BaseChuParser
 {
@@ -23,7 +22,6 @@ public class UgcParser: BaseChuParser
         ["DC"] = "ADW",
         ["DR"] = "ADR",
         ["DL"] = "ADL",
-        ["HD"] = "AHD",
     };
 
     private static readonly Dictionary<string, string> ChrExtras = new()
@@ -273,7 +271,7 @@ public class UgcParser: BaseChuParser
             Time = measure + new Rational(tick, RSL),
         };
 
-        var typeChar = char.ToLowerInvariant(code[0]);
+        var typeChar = code[0];
 
         switch (typeChar)
         {
@@ -285,16 +283,28 @@ public class UgcParser: BaseChuParser
                 break;
 
             case 'h':
-                idx = ParseHoldNote(lines, idx, code, note, alerts, chart);
+                idx = ParseHoldNote(false, lines, idx, code, note, alerts, chart);
+                break;
+            case 'H': // Air Hold
+                idx = ParseHoldNote(true, lines, idx, code, note, alerts, chart);
                 break;
 
             case 's':
-                idx = ParseSlideNote(lines, idx, code, note, alerts, chart);
+                idx = ParseSlideNote(false, lines, idx, code, note, alerts, chart);
                 note = null; // ParseSlideNote中，会自己构造note并自己添加进chart。因此这里默认的统一note不应被添加进chart。
+                break;
+            case 'S': // Air Slide
+                idx = ParseSlideNote(true, lines, idx, code, note, alerts, chart);
+                note = null;
                 break;
 
             case 'a':
                 ParseAirNote(code, note, alerts, lineNum, chart);
+                break;
+            case 'C': // Air Crush
+            case 'T': // 暂时不确定这是什么，只出现在v7以前版本中，v8开始已经没有了
+                idx = ParseAirCrushNote(lines, idx, code, note, alerts, chart);
+                note = null;
                 break;
 
             case 'f':
@@ -334,32 +344,39 @@ public class UgcParser: BaseChuParser
         }
     }
 
-    private static int ParseHoldNote(string[] lines, int idx, string code, ChuNote note, List<Alert> alerts, ChuChart chart)
+    private static int ParseHoldNote(bool isAirHold, string[] lines, int idx, string code, ChuNote note, List<Alert> alerts, ChuChart chart)
     {
-        note.Type = "HLD";
+        note.Type = isAirHold ? "AHD" : "HLD";
         ParseCellWidth(code, 1, note, alerts, idx + 1, chart);
+
+        if (isAirHold)
+        {
+            // 解析颜色数据。目前只解析、不使用。
+            _ = code.Last(); // var colorChar 颜色标记 N/I
+        }
 
         bool foundFirst = false;
         while (idx + 1 < lines.Length)
         {
             var nextLine = lines[idx + 1].Trim();
-            if (!TryParseFollowerLine(nextLine, out _, out var duration, out _, out _))
+            if (!TryParseFollowerLine(nextLine, out var marker, out var duration, out _, out _, out _, false))
             {
                 if (nextLine.StartsWith('\'') || nextLine.StartsWith('@')) { idx++; continue; }
                 break;
             }
 
             note.Duration += new Rational(duration, RSL);
+            if (isAirHold && marker == "c") note.Type = "AHX"; // 可能是对应于UMIGURI文档中的 AirHold的 AIR-ACTION 无し终点
             idx++;
             foundFirst = true;
         }
 
         if (!foundFirst)
-            alerts.Add(new Alert(Warning, $"HLD 音符缺少时长跟随行") { Line = idx + 1, RelevantNote = FormatNoteRef(note, chart) });
+            alerts.Add(new Alert(Warning, $"HLD 音符缺少时长跟随行") { Line = idx + 1, RelevantNote = lines[idx] });
         return idx;
     }
 
-    private static int ParseSlideNote(string[] lines, int idx, string code, ChuNote previousNote, List<Alert> alerts, ChuChart chart)
+    private static int ParseSlideNote(bool isAirSlide, string[] lines, int idx, string code, ChuNote previousNote, List<Alert> alerts, ChuChart chart)
     {
         // 注：一开始从外面传进来的previousNote，最后并不会被添加进chart里，只是作为第一段的起点参照而已。
         var startTime = previousNote.Time;
@@ -367,21 +384,30 @@ public class UgcParser: BaseChuParser
         previousNote.EndCell = previousNote.Cell;
         previousNote.EndWidth = previousNote.Width;
 
+        if (isAirSlide)
+        {
+            // 解析高度和颜色数据。目前只解析、不使用。
+            TryParseUgcBase36Int2(code.AsSpan(3, code.Length - 4), out _); // out var startHeight 起始的高度值
+            _ = code.Last(); // var colorChar 颜色标记 N/I
+        }
+
         bool foundFirst = false;
         while (idx + 1 < lines.Length)
         { // 循环处理所有的跟随行。idx始终指向上一条已经处理完的行。
             var nextLine = lines[idx + 1].Trim();
-            if (!TryParseFollowerLine(nextLine, out var marker, out var duration, out var endCell, out var endWidth, true))
+            if (!TryParseFollowerLine(nextLine, out var marker, out var duration, out var endCell, out var endWidth, out _, true))
             {
                 if (nextLine.StartsWith('\'') || nextLine.StartsWith('@')) { idx++; continue; }
                 break;
             }
 
+            var type = isAirSlide ? (marker == "s" ? "ASD" : "ASC") : (marker == "s" ? "SLD" : "SLC");
+
             var segmentEnd = startTime + new Rational(duration, RSL);
             var note = new ChuNote
             {
-                Type = marker == "s" ? "SLD" : "SLC", 
-                Time = previousNote.EndTime, Cell = previousNote.EndCell, Width = previousNote.EndWidth,
+                Type = type, Time = previousNote.EndTime, 
+                Cell = previousNote.EndCell, Width = previousNote.EndWidth,
                 Duration = segmentEnd - previousNote.EndTime, 
                 EndCell = endCell, EndWidth = endWidth,
                 Previous = foundFirst ? previousNote : null,
@@ -393,36 +419,55 @@ public class UgcParser: BaseChuParser
         }
 
         if (!foundFirst)
-            alerts.Add(new Alert(Warning, $"SLD 音符缺少时长跟随行") { Line = idx + 1, RelevantNote = FormatNoteRef(previousNote, chart) });
+            alerts.Add(new Alert(Warning, $"SLD 音符缺少时长跟随行") { Line = idx + 1, RelevantNote = lines[idx] });
 
         return idx;
     }
     
-    private static bool TryParseFollowerLine(string line, out string marker, out int duration, out int endCell, out int endWidth, bool requireEndCellWidth = false)
+    private static bool TryParseUgcBase36Int2(ReadOnlySpan<char> twoChars, out int value)
     {
-        duration = 0;
+        value = 0;
+        if (twoChars.Length == 0) return false;
+        else if (twoChars.Length == 1)
+        {
+            if (!TryHexCharToInt(twoChars[0], out value)) return false;
+        }
+        else
+        {
+            if (!TryHexCharToInt(twoChars[0], out var hi) || !TryHexCharToInt(twoChars[1], out var lo)) return false;
+            value = hi * 36 + lo;
+        }
+        return true;
+    }
+    
+    private static bool TryParseFollowerLine(string line, out string marker, out int endTick, out int endCell, out int endWidth, out int? height, bool requireEndCellWidth)
+    {
+        endTick = 0;
         endCell = 0;
         endWidth = 1;
         marker = "";
+        height = null;
 
         if (!line.StartsWith('#')) return false;
 
         // support both >s (SLD) and >c (SLC) follower lines
-        int gtIdx = line.IndexOfAny(['>', ':']);
-        if (gtIdx < 1) return false;
-        marker = line[gtIdx+1].ToString();
+        int sepIdx = line.IndexOfAny(['>', ':']);
+        if (sepIdx < 1) return false;
+        marker = line[sepIdx+1].ToString();
         int markerLen = 2;
 
-        var durationStr = line[1..gtIdx];
-        if (!int.TryParse(durationStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out duration)) return false;
+        var endTickStr = line[1..sepIdx];
+        if (!int.TryParse(endTickStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out endTick)) return false;
 
-        var afterMarker = line[(gtIdx + markerLen)..];
+        var afterMarker = line[(sepIdx + markerLen)..];
         if (afterMarker.Length >= 2)
         {
             endCell = HexCharToInt(afterMarker[0]);
-            endWidth = WidthHexCharToInt(afterMarker[1]);
+            endWidth = HexCharToInt(afterMarker[1]);
         }
         else if (requireEndCellWidth) return false;
+
+        if (afterMarker.Length > 2 && TryParseUgcBase36Int2(afterMarker.AsSpan()[2..], out var heightV)) height = heightV;
 
         return true;
     }
@@ -433,19 +478,18 @@ public class UgcParser: BaseChuParser
         {
             note.Cell = HexCharToInt(code[startIdx]);
             if (code.Length > startIdx + 1)
-                note.Width = WidthHexCharToInt(code[startIdx + 1]);
+                note.Width = HexCharToInt(code[startIdx + 1]);
             else
-                alerts.Add(new Alert(Warning, $"音符缺少 width: {code}") { Line = lineNum, RelevantNote = FormatNoteRef(note, chart) });
+                alerts.Add(new Alert(Warning, $"音符缺少 width: {code}") { Line = lineNum, RelevantNote = FormatNoteRef(note, code) });
         }
         else
         {
-            alerts.Add(new Alert(Warning, $"音符缺少 cell 和 width: {code}") { Line = lineNum, RelevantNote = FormatNoteRef(note, chart) });
+            alerts.Add(new Alert(Warning, $"音符缺少 cell 和 width: {code}") { Line = lineNum, RelevantNote = FormatNoteRef(note, code) });
         }
     }
 
     private static void ParseAirNote(string code, ChuNote note, List<Alert> alerts, int lineNum, ChuChart chart)
     {
-        // Matches UgcGenerator: "a" + cell + width + two-letter direction + targetNote [ + "_" + airHoldDuration for AHD ]
         if (code.Length < 5)
         {
             alerts.Add(new Alert(Warning, $"AIR 音符代码过短: {code}") { Line = lineNum });
@@ -454,9 +498,7 @@ public class UgcParser: BaseChuParser
         }
 
         ParseCellWidth(code, 1, note, alerts, lineNum, chart);
-        var afterCellWidth = code[3..];
-        var underscoreIdx = afterCellWidth.IndexOf('_');
-        var mainPart = underscoreIdx >= 0 ? afterCellWidth[..underscoreIdx] : afterCellWidth;
+        var mainPart = code[3..5];
 
         if (mainPart.Length < 2)
         {
@@ -473,44 +515,58 @@ public class UgcParser: BaseChuParser
         else
         {
             note.Type = "AIR";
-            alerts.Add(new Alert(Warning, $"未知的 AIR 方向: {dir}") { Line = lineNum, RelevantNote = FormatNoteRef(note, chart) });
+            alerts.Add(new Alert(Warning, $"未知的 AIR 方向: {dir}") { Line = lineNum, RelevantNote = FormatNoteRef(note, code) });
+        }
+    }
+
+    private static int ParseAirCrushNote(string[] lines, int idx, string code, ChuNote previousNote, List<Alert> alerts, ChuChart chart)
+    {
+        // TODO 尚未实现，所以先给个警告
+        alerts.Add(new Alert(Warning, "当前版本尚未实现对Air-Crush(UMIGURI的':C'或':T'音符)的解析。") { Line = idx, RelevantNote = lines[idx] });
+        
+        bool foundFirst = false;
+        while (idx + 1 < lines.Length)
+        { // 循环处理所有的跟随行。idx始终指向上一条已经处理完的行。
+            var nextLine = lines[idx + 1].Trim();
+            if (!TryParseFollowerLine(nextLine, out var marker, out var duration, out _, out _, out _, false))
+            {
+                if (nextLine.StartsWith('\'') || nextLine.StartsWith('@')) { idx++; continue; }
+                break;
+            }
+            
+            // TODO 尚未实现
+            idx++;
+            foundFirst = true;
         }
 
-        if (underscoreIdx >= 0 && note.Type == "AHD")
-        {
-            var durStr = afterCellWidth[(underscoreIdx + 1)..];
-            if (int.TryParse(durStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ahdDuration))
-                note.Duration = new Rational(ahdDuration, RSL);
-        }
+        if (!foundFirst)
+            alerts.Add(new Alert(Warning, $"air-crush 音符缺少时长跟随行") { Line = idx + 1, RelevantNote = lines[idx] });
+        return idx;
     }
 
     private static int HexCharToInt(char c)
     {
-        return c switch
-        {
-            >= '0' and <= '9' => c - '0',
-            >= 'A' and <= 'F' => c - 'A' + 10,
-            >= 'a' and <= 'f' => c - 'a' + 10,
-            _ => 0,
-        };
+        if (!TryHexCharToInt(c, out var result)) result = 0;
+        return result;
     }
 
-    private static int WidthHexCharToInt(char c)
+    private static bool TryHexCharToInt(char c, out int result)
     {
-        return c switch
+        result = c switch
         {
-            >= '1' and <= '9' => c - '1' + 1,
-            >= 'A' and <= 'G' => c - 'A' + 10,
-            >= 'a' and <= 'g' => c - 'a' + 10,
-            _ => 1,
+            >= '0' and <= '9' => c - '0',
+            >= 'A' and <= 'Z' => c - 'A' + 10,
+            >= 'a' and <= 'z' => c - 'a' + 10,
+            _ => -1,
         };
+        return result >= 0;
     }
 
     // ReSharper disable once UnusedParameter.Local
-    private static string FormatNoteRef(ChuNote note, ChuChart chart)
+    private static string FormatNoteRef(ChuNote note, string code)
     {
         var (m, o) = Utils.BarAndTick(note.Time, RSL);
-        return $"#{m}'{o}:{note.Type}";
+        return $"#{m}'{o}:{code}";
     }
 }
 
