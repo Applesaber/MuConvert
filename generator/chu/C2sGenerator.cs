@@ -67,6 +67,13 @@ public class C2sGenerator : IGenerator<ChuChart>
         return sb.ToString();
     }
 
+    private static List<string> allowedAirColors = ["DEF"]; // TODO 搞清楚UGC里的'I'颜色，在C2S里，对应的字符串是什么
+    private static string AirColorTag(ChuNote n)
+    {
+        if (allowedAirColors.Contains(n.Tag)) return n.Tag;
+        else return "DEF";
+    }
+
     private static string? FormatNote(ChuNote n, int tpm, List<Alert> alerts)
     {
         var (m, o) = Utils.BarAndTick(n.Time, tpm);
@@ -79,13 +86,8 @@ public class C2sGenerator : IGenerator<ChuChart>
             "SLD" or "SLC" or "SXD" or "SXC" => $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}",
             "FLK" => $"FLK\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.Tag}",
             "AIR" or "AUR" or "AUL" or "ADW" or "ADR" or "ADL" =>
-                string.IsNullOrEmpty(n.Tag)
-                    ? $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}"
-                    : $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{n.Tag}",
-            "AHD" or "AHX" =>
-                string.IsNullOrEmpty(n.Tag)
-                    ? $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{durTicks}"
-                    : $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{durTicks}\t{n.Tag}",
+                    $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{AirColorTag(n)}",
+            "AHD" or "AHX" => $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{durTicks}\t{AirColorTag(n)}",
             "ASD" or "ASC" => FormatAsdAsc(n, m, o, durTicks),
             "ALD" => FormatAld(n, m, o),
             "MNE" => $"MNE\t{m}\t{o}\t{n.Cell}\t{n.Width}",
@@ -101,9 +103,9 @@ public class C2sGenerator : IGenerator<ChuChart>
 
     private static string FormatAsdAsc(ChuNote n, int m, int o, int durTicks)
     {
-        var e0 = n.ExtraData.Count > 0 ? n.ExtraData[0] : 0;
-        var e1 = n.ExtraData.Count > 1 ? n.ExtraData[1] : 0;
-        return $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{e0}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}\t{e1}\t{n.Tag}";
+        var e0 = n.ExtraData.Count > 0 ? n.ExtraData[0] : 5;
+        var e1 = n.ExtraData.Count > 1 ? n.ExtraData[1] : 5;
+        return $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{e0}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}\t{e1}\t{AirColorTag(n)}";
     }
 
     private static string FormatAld(ChuNote n, int m, int o)

@@ -30,6 +30,12 @@ public class UgcParser: BaseChuParser
         ["D"] = "DW",
         ["C"] = "CE",
     };
+    
+    private static readonly Dictionary<string, string> AirColor = new()
+    {
+        ["N"] = "DEF",
+        ["I"] = "I", // TODO 搞清楚UGC里的'I'颜色，在C2S里，对应的字符串是什么
+    };
 
     public override (ChuChart, List<Alert>) Parse(string text)
     {
@@ -351,8 +357,8 @@ public class UgcParser: BaseChuParser
 
         if (isAirHold)
         {
-            // 解析颜色数据。目前只解析、不使用。
-            _ = code.Last(); // var colorChar 颜色标记 N/I
+            var colorChar = code.Last(); // 颜色标记 N/I
+            note.Tag = AirColor[colorChar.ToString()];
         }
 
         bool foundFirst = false;
@@ -384,11 +390,13 @@ public class UgcParser: BaseChuParser
         previousNote.EndCell = previousNote.Cell;
         previousNote.EndWidth = previousNote.Width;
 
+        string colorTag = "";
         if (isAirSlide)
         {
-            // 解析高度和颜色数据。目前只解析、不使用。
+            var colorChar = code.Last(); // 颜色标记 N/I
+            colorTag = AirColor[colorChar.ToString()];
+            // 解析高度数据。目前只解析、不使用。
             TryParseUgcBase36Int2(code.AsSpan(3, code.Length - 4), out _); // out var startHeight 起始的高度值
-            _ = code.Last(); // var colorChar 颜色标记 N/I
         }
 
         bool foundFirst = false;
@@ -412,6 +420,8 @@ public class UgcParser: BaseChuParser
                 EndCell = endCell, EndWidth = endWidth,
                 Previous = foundFirst ? previousNote : null,
             };
+            if (isAirSlide) note.Tag = colorTag;
+            
             chart.Notes.Add(note);
             previousNote = note;
             idx++;

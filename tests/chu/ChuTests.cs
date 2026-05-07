@@ -55,6 +55,7 @@ public class ChuTests
         {
             Rational r => r.CanonicalForm.ToString(),
             List<int> list => string.Join(",", list),
+            string s => s == "DEF" ? "" : s,
             null => "",
             _ => v.ToString() ?? "",
         };
