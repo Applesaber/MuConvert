@@ -11,7 +11,7 @@ namespace MuConvert.chu;
  * UGC 格式解析器（UMIGURI 格式，@TICKS=480 tick/拍）。
  * @HEADER 标签 + #measure'tick:code 音符格式。
  */
-public class UgcParser : IParser<ChuChart>
+public class UgcParser: BaseChuParser
 {
     private static int RSL = 480 * 4;
     
@@ -33,7 +33,7 @@ public class UgcParser : IParser<ChuChart>
         ["C"] = "CE",
     };
 
-    public (ChuChart, List<Alert>) Parse(string text)
+    public override (ChuChart, List<Alert>) Parse(string text)
     {
         var chart = new ChuChart();
         var alerts = new List<Alert>();
@@ -64,6 +64,7 @@ public class UgcParser : IParser<ChuChart>
         }
 
         FinalizeUgcSflDurations(chart);
+        FillAllPrevious(chart, alerts);
         return (chart, alerts);
     }
 
@@ -383,7 +384,7 @@ public class UgcParser : IParser<ChuChart>
                 Time = previousNote.EndTime, Cell = previousNote.EndCell, Width = previousNote.EndWidth,
                 Duration = segmentEnd - previousNote.EndTime, 
                 EndCell = endCell, EndWidth = endWidth,
-                TargetNote = "SLD"
+                Previous = foundFirst ? previousNote : null,
             };
             chart.Notes.Add(note);
             previousNote = note;
@@ -474,8 +475,6 @@ public class UgcParser : IParser<ChuChart>
             note.Type = "AIR";
             alerts.Add(new Alert(Warning, $"未知的 AIR 方向: {dir}") { Line = lineNum, RelevantNote = FormatNoteRef(note, chart) });
         }
-
-        note.TargetNote = mainPart.Length > 2 ? mainPart[2..] : "N";
 
         if (underscoreIdx >= 0 && note.Type == "AHD")
         {

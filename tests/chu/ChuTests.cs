@@ -102,7 +102,7 @@ public class ChuTests
         Duration = duration,
         EndCell = n.EndCell,
         EndWidth = n.EndWidth,
-        TargetNote = n.TargetNote,
+        Previous = n.Previous,
         Tag = n.Tag,
         ExtraData = [..n.ExtraData],
     };
@@ -115,6 +115,7 @@ public class ChuTests
         if (isUgcReference)
         {
             var ugcSnaps = ugc.Notes
+                .Where(n=>n.Type != "CLICK")
                 .Select(n => SnapshotNote(UgcNoteScaledToC2sTicks(n, 480, 384)))
                 .OrderBy(s => s)
                 .ToArray();

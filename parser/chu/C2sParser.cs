@@ -11,7 +11,7 @@ namespace MuConvert.chu;
  * C2S 格式解析器（官方格式，RESOLUTION=384 tick/小节）。
  * Tab 分隔文本，识别 HEADER / TIMING / NOTES 区段。
  */
-public class C2sParser : IParser<ChuChart>
+public class C2sParser: BaseChuParser
 {
     private static int RSL = 384;
     private static readonly HashSet<string> HeadTags = new(StringComparer.OrdinalIgnoreCase)
@@ -19,7 +19,10 @@ public class C2sParser : IParser<ChuChart>
     private static readonly HashSet<string> TimingTags = new(StringComparer.OrdinalIgnoreCase)
         { "BPM", "MET", "SFL" };
 
-    public (ChuChart, List<Alert>) Parse(string text)
+    // C2S 会原始记录 targetNote 字符串；用于在 Previous 推断有多个候选时优先匹配。
+    private readonly Dictionary<ChuNote, string> _rawTargetNote = new();
+
+    public override (ChuChart, List<Alert>) Parse(string text)
     {
         var chart = new ChuChart();
         var alerts = new List<Alert>();
@@ -51,6 +54,7 @@ public class C2sParser : IParser<ChuChart>
             }
         }
 
+        FillAllPrevious(chart, alerts, _rawTargetNote);
         return (chart, alerts);
     }
 
@@ -86,10 +90,11 @@ public class C2sParser : IParser<ChuChart>
         }
     }
 
-    private static void ParseNote(string[] p, ChuChart chart, List<Alert> alerts, int lineNum)
+    private void ParseNote(string[] p, ChuChart chart, List<Alert> alerts, int lineNum)
     {
         var tag = p[0].ToUpperInvariant();
         var note = new ChuNote { Type = tag, Time = Int(p, 1) + new Rational(Int(p, 2), RSL) };
+        string? targetNote = null;
 
         switch (tag)
         {
@@ -107,12 +112,12 @@ public class C2sParser : IParser<ChuChart>
             case "FLK":
                 note.Cell = Int(p, 3); note.Width = Math.Max(1, Int(p, 4, 1)); note.Tag = Str(p, 5); break;
             case "AIR": case "AUR": case "AUL": case "ADW": case "ADR": case "ADL":
-                note.Cell = Int(p, 3); note.Width = Math.Max(1, Int(p, 4, 1)); note.TargetNote = Str(p, 5);
+                note.Cell = Int(p, 3); note.Width = Math.Max(1, Int(p, 4, 1)); targetNote = Str(p, 5);
                 if (p.Length >= 7) note.Tag = Str(p, 6);
                 break;
             case "AHD": case "AHX":
                 note.Cell = Int(p, 3); note.Width = Math.Max(1, Int(p, 4, 1));
-                note.TargetNote = Str(p, 5); note.Duration = new Rational(Int(p, 6), RSL);
+                targetNote = Str(p, 5); note.Duration = new Rational(Int(p, 6), RSL);
                 if (p.Length >= 8) note.Tag = Str(p, 7);
                 break;
             case "ASD": case "ASC":
@@ -123,7 +128,7 @@ public class C2sParser : IParser<ChuChart>
                     return;
                 }
                 note.Cell = Int(p, 3); note.Width = Math.Max(1, Int(p, 4, 1));
-                note.TargetNote = Str(p, 5);
+                targetNote = Str(p, 5);
                 note.ExtraData = [Int(p, 6), Int(p, 10)];
                 note.Duration = new Rational(Int(p, 7), RSL);
                 note.EndCell = Int(p, 8); note.EndWidth = Math.Max(1, Int(p, 9, 1));
@@ -144,6 +149,7 @@ public class C2sParser : IParser<ChuChart>
                 alerts.Add(new Alert(Warning, string.Format(Locale.C2SUnknownNoteType, tag)) { Line = lineNum }); return;
         }
 
+        if (targetNote != null) _rawTargetNote[note] = targetNote;
         chart.Notes.Add(note);
     }
 

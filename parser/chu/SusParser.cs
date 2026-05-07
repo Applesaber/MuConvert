@@ -11,7 +11,7 @@ namespace MuConvert.chu;
  * SUS 格式解析器（社区工具格式，REQUEST=480 tick/拍，lane 0–31）。
  * #MMTT:data 十六进制编码音符。
  */
-public class SusParser : IParser<ChuChart>
+public class SusParser: BaseChuParser
 {
     private static int RSL = 480 * 4;
     
@@ -28,7 +28,7 @@ public class SusParser : IParser<ChuChart>
         [0x10] = "MNE",
     };
 
-    public (ChuChart, List<Alert>) Parse(string text)
+    public override (ChuChart, List<Alert>) Parse(string text)
     {
         var chart = new ChuChart();
         var alerts = new List<Alert>();
@@ -57,6 +57,7 @@ public class SusParser : IParser<ChuChart>
             }
         }
 
+        FillAllPrevious(chart, alerts);
         return (chart, alerts);
     }
 
@@ -208,11 +209,7 @@ public class SusParser : IParser<ChuChart>
 
     private static void ParseAirTarget(string dataStr, ChuNote note, int tpm, List<Alert> alerts, int lineNum)
     {
-        if (dataStr.Length >= 8)
-        {
-            note.TargetNote = HexToInt(dataStr[6..8]).ToString();
-        }
-        else
+        if (dataStr.Length < 8)
         {
             alerts.Add(new Alert(Warning, $"AIR/ADW 音符缺少目标: {dataStr}") { Line = lineNum, RelevantNote = FormatNoteRef(note, tpm) });
         }
