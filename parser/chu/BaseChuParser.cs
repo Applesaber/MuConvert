@@ -1,5 +1,6 @@
 using MuConvert.chu;
 using MuConvert.utils;
+using static MuConvert.utils.ChuUtils;
 
 namespace MuConvert.parser;
 
@@ -55,16 +56,8 @@ public abstract class BaseChuParser : IParser<ChuChart>
 
     private static bool NeedsPrevious(ChuNote n)
     {
-        return IsSlide(n.Type) || IsAir(n.Type) || IsAirSlide(n.Type) || IsAirHold(n.Type) || IsAirCrush(n.Type);
+        return IsSlide(n.Type) || IsGeneralizedAir(n);
     }
-
-    public static bool IsSlide(string t) => t is "SLD" or "SLC" or "SXD" or "SXC";
-    public static bool IsAirSlide(string t) => t is "ASD" or "ASC";
-    public static bool IsAir(string t) => t is "AIR" or "AUR" or "AUL" or "ADW" or "ADR" or "ADL";
-    public static bool IsAirHold(string t) => t is "AHD" or "AHX";
-    public static bool IsAirCrush(string t) => t is "ALD";
-    // 是否是广义的air音符（Air/Air Hold/Air Slide/Air Crush）
-    public static bool IsGeneralizedAir(string t) => IsAir(t) || IsAirHold(t) || IsAirSlide(t) || IsAirCrush(t);
     
     private static List<ChuNote> FilterPreviousCandidates(ChuNote cur, List<ChuNote> candidates)
     { // 注意：候选列表已满足“首尾相接”，这里仅做类型约束

@@ -1,6 +1,7 @@
 using System.Text;
 using MuConvert.generator;
 using MuConvert.utils;
+using static MuConvert.utils.ChuUtils;
 
 namespace MuConvert.chu;
 
@@ -77,15 +78,15 @@ public class UgcGenerator : IGenerator<ChuChart>
             {
                 if (slideChains.TryGetValue(n, out var segments))
                 {
-                    var isAir = IsAirSlideType(n.Type);
+                    var isAir = IsAirSlide(n.Type);
                     foreach (var seg in segments)
                     {
                         var endTicks = Utils.Tick(seg.EndTime - n.Time, RSL);
                         if (endTicks <= 0) continue;
                         if (isAir)
-                            sb.AppendLine($"#{endTicks}>{SlideFollowerMarker(seg.Type)}{IntToHex(seg.EndCell)}{IntToHex(seg.EndWidth)}{EncodeUgcAirHeight2(AirSlideFollowerHeight(seg))}");
+                            sb.AppendLine($"#{endTicks}>{SlideFollowerMarker(seg.Type)}{IToH36(seg.EndCell)}{IToH36(seg.EndWidth)}{EncodeUgcAirHeight2(AirSlideFollowerHeight(seg))}");
                         else
-                            sb.AppendLine($"#{endTicks}>{SlideFollowerMarker(seg.Type)}{IntToHex(seg.EndCell)}{IntToHex(seg.EndWidth)}");
+                            sb.AppendLine($"#{endTicks}>{SlideFollowerMarker(seg.Type)}{IToH36(seg.EndCell)}{IToH36(seg.EndWidth)}");
                     }
                 }
                 continue;
@@ -143,10 +144,8 @@ public class UgcGenerator : IGenerator<ChuChart>
             cur = cur.Previous;
         return cur;
     }
-
-    private static bool IsSlideType(string t) => t is "SLD" or "SLC" or "SXD" or "SXC";
-    private static bool IsAirSlideType(string t) => t is "ASD" or "ASC";
-    private static bool IsSlideChainNote(string t) => IsSlideType(t) || IsAirSlideType(t);
+    
+    private static bool IsSlideChainNote(string t) => IsSlide(t) || IsAirSlide(t);
     private static char SlideFollowerMarker(string t) => t is "SLC" or "SXC" or "ASC" ? 'c' : 's';
 
     /// <summary> C2S col.6 / follower height: integer stored as two base-36 digits (Umiguri v8 AIR-SLIDE). </summary>
@@ -155,44 +154,31 @@ public class UgcGenerator : IGenerator<ChuChart>
         var v = Math.Clamp(value * 10, 0, 35 * 36 + 35);
         var hi = v / 36;
         var lo = v % 36;
-        return $"{IntToHex(hi)}{IntToHex(lo)}";
+        return $"{IToH36(hi)}{IToH36(lo)}";
     }
 
     private static int AirSlideParentStartHeight(ChuNote head) => 8; // TODO 现在暂时写死，之后应该改成从ExtraData等地方读取
     private static int AirSlideFollowerHeight(ChuNote seg) => 8; // TODO 现在暂时写死，之后应该改成从ExtraData等地方读取
-
-    private static Dictionary<string, string> AirDirections = new()
-    {
-        ["AIR"] = "UC", ["AUR"] = "UR", ["AUL"] = "UL", ["ADW"] = "DC", ["ADR"] = "DR", ["ADL"] = "DL",
-    };
+    
     private static string UCode(ChuNote n)
     {
-        string c = IntToHex(n.Cell), w = IntToHex(n.Width);
+        string c = IToH36(n.Cell), w = IToH36(n.Width);
         var targetNote = string.IsNullOrEmpty(n.TargetNote) ? "N" : n.TargetNote;
         return n.Type switch
         {
             "TAP" => $"t{c}{w}",
-            "CHR" => $"x{c}{w}{n.Tag}",
+            "CHR" => $"x{c}{w}{C2U_ChrExtras.GetValueOrDefault(n.Tag, n.Tag)}",
             "HLD" or "HXD" => $"h{c}{w}",
             "SLD" or "SXD" => $"s{c}{w}",
             "SLC" or "SXC" => $"s{c}{w}",
             "FLK" => $"f{c}{w}A",
             "MNE" => $"d{c}{w}",
             // AIR-SLIDE (v8): #BarTick:S x w hh c
-            "ASD" or "ASC" => $"S{c}{w}{EncodeUgcAirHeight2(AirSlideParentStartHeight(n))}{AirHoldColorSuffix(n)}",
-            "AIR" or "AUR" or "AUL" or "ADW" or "ADR" or "ADL" => $"a{c}{w}{AirDirections[n.Type]}{targetNote}{AirHoldColorSuffix(n)}",
+            "ASD" or "ASC" => $"S{c}{w}{EncodeUgcAirHeight2(AirSlideParentStartHeight(n))}{C2U_AirColor.GetValueOrDefault(n.Tag, "N")}",
+            "AIR" or "AUR" or "AUL" or "ADW" or "ADR" or "ADL" => $"a{c}{w}{C2U_AirDirections[n.Type]}{targetNote}{C2U_AirColor.GetValueOrDefault(n.Tag, "N")}",
             // AIR-HOLD (v8): #BarTick:H x w c + 子行 #OffsetTick:s / :c（见 Umiguri Chart v8 doc）
-            "AHD" or "AHX" => $"H{c}{w}{AirHoldColorSuffix(n)}",
+            "AHD" or "AHX" => $"H{c}{w}{C2U_AirColor.GetValueOrDefault(n.Tag, "N")}",
             _ => ""
         };
     }
-
-    private static string IntToHex(int v) => "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.Clamp(v, 0, 35)].ToString();
-
-    private static readonly Dictionary<string, string> AirColor = new()
-    {
-        ["DEF"] = "N",
-        ["I"] = "I", // TODO 搞清楚UGC里的'I'颜色，在C2S里，对应的字符串是什么
-    };
-    private static string AirHoldColorSuffix(ChuNote n) => AirColor.GetValueOrDefault(n.Tag, "N");
 }

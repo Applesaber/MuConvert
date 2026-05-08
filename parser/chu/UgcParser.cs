@@ -4,6 +4,8 @@ using MuConvert.parser;
 using MuConvert.utils;
 using Rationals;
 using static MuConvert.utils.Alert.LEVEL;
+using static MuConvert.utils.Utils;
+using static MuConvert.utils.ChuUtils;
 
 namespace MuConvert.chu;
 
@@ -13,29 +15,6 @@ namespace MuConvert.chu;
 public class UgcParser: BaseChuParser
 {
     private static int RSL = 480 * 4;
-    
-    private static readonly Dictionary<string, string> AirDirections = new()
-    {
-        ["UC"] = "AIR",
-        ["UR"] = "AUR",
-        ["UL"] = "AUL",
-        ["DC"] = "ADW",
-        ["DR"] = "ADR",
-        ["DL"] = "ADL",
-    };
-
-    private static readonly Dictionary<string, string> ChrExtras = new()
-    {
-        ["U"] = "UP",
-        ["D"] = "DW",
-        ["C"] = "CE",
-    };
-    
-    private static readonly Dictionary<string, string> AirColor = new()
-    {
-        ["N"] = "DEF",
-        ["I"] = "I", // TODO 搞清楚UGC里的'I'颜色，在C2S里，对应的字符串是什么
-    };
 
     public override (ChuChart, List<Alert>) Parse(string text)
     {
@@ -346,7 +325,7 @@ public class UgcParser: BaseChuParser
         {
             note.Type = "CHR";
             var extraRaw = code.Length > 3 ? code[3..] : "";
-            note.Tag = ChrExtras.GetValueOrDefault(extraRaw, extraRaw);
+            note.Tag = U2C_ChrExtras.GetValueOrDefault(extraRaw, extraRaw);
         }
     }
 
@@ -358,7 +337,7 @@ public class UgcParser: BaseChuParser
         if (isAirHold)
         {
             var colorChar = code.Last(); // 颜色标记 N/I
-            note.Tag = AirColor.GetValueOrDefault(colorChar.ToString(), "");
+            note.Tag = U2C_AirColor.GetValueOrDefault(colorChar.ToString(), "");
         }
 
         bool foundFirst = false;
@@ -394,9 +373,9 @@ public class UgcParser: BaseChuParser
         if (isAirSlide)
         {
             var colorChar = code.Last(); // 颜色标记 N/I
-            colorTag = AirColor.GetValueOrDefault(colorChar.ToString(), "");
+            colorTag = U2C_AirColor.GetValueOrDefault(colorChar.ToString(), "");
             // 解析高度数据。目前只解析、不使用。
-            TryParseUgcBase36Int2(code.AsSpan(3, code.Length - 4), out _); // out var startHeight 起始的高度值
+            TryH36ToI(code[3..^1], out _); // out var startHeight 起始的高度值
         }
 
         bool foundFirst = false;
@@ -434,22 +413,6 @@ public class UgcParser: BaseChuParser
         return idx;
     }
     
-    private static bool TryParseUgcBase36Int2(ReadOnlySpan<char> twoChars, out int value)
-    {
-        value = 0;
-        if (twoChars.Length == 0) return false;
-        else if (twoChars.Length == 1)
-        {
-            if (!TryHexCharToInt(twoChars[0], out value)) return false;
-        }
-        else
-        {
-            if (!TryHexCharToInt(twoChars[0], out var hi) || !TryHexCharToInt(twoChars[1], out var lo)) return false;
-            value = hi * 36 + lo;
-        }
-        return true;
-    }
-    
     private static bool TryParseFollowerLine(string line, out string marker, out int endTick, out int endCell, out int endWidth, out int? height, bool requireEndCellWidth)
     {
         endTick = 0;
@@ -472,12 +435,12 @@ public class UgcParser: BaseChuParser
         var afterMarker = line[(sepIdx + markerLen)..];
         if (afterMarker.Length >= 2)
         {
-            endCell = HexCharToInt(afterMarker[0]);
-            endWidth = HexCharToInt(afterMarker[1]);
+            endCell = HToI(afterMarker[0]);
+            endWidth = HToI(afterMarker[1]);
         }
         else if (requireEndCellWidth) return false;
 
-        if (afterMarker.Length > 2 && TryParseUgcBase36Int2(afterMarker.AsSpan()[2..], out var heightV)) height = heightV;
+        if (afterMarker.Length > 2 && TryH36ToI(afterMarker[2..], out var heightV)) height = heightV;
 
         return true;
     }
@@ -486,15 +449,15 @@ public class UgcParser: BaseChuParser
     {
         if (code.Length > startIdx)
         {
-            note.Cell = HexCharToInt(code[startIdx]);
+            note.Cell = HToI(code[startIdx]);
             if (code.Length > startIdx + 1)
-                note.Width = HexCharToInt(code[startIdx + 1]);
+                note.Width = HToI(code[startIdx + 1]);
             else
-                alerts.Add(new Alert(Warning, $"音符缺少 width: {code}") { Line = lineNum, RelevantNote = FormatNoteRef(note, code) });
+                alerts.Add(new Alert(Warning, $"音符缺少 width: {code}", note.Time, (double)chart.ToSecond(note.Time), lineNum, FormatNoteRef(note, code)));
         }
         else
         {
-            alerts.Add(new Alert(Warning, $"音符缺少 cell 和 width: {code}") { Line = lineNum, RelevantNote = FormatNoteRef(note, code) });
+            alerts.Add(new Alert(Warning, $"音符缺少 cell 和 width: {code}", note.Time, (double)chart.ToSecond(note.Time), lineNum, FormatNoteRef(note, code)));
         }
     }
 
@@ -518,7 +481,7 @@ public class UgcParser: BaseChuParser
         }
 
         var dir = mainPart[..2];
-        if (AirDirections.TryGetValue(dir, out var airType))
+        if (U2C_AirDirections.TryGetValue(dir, out var airType))
         {
             note.Type = airType;
         }
@@ -552,24 +515,6 @@ public class UgcParser: BaseChuParser
         if (!foundFirst)
             alerts.Add(new Alert(Warning, $"air-crush 音符缺少时长跟随行") { Line = idx + 1, RelevantNote = lines[idx] });
         return idx;
-    }
-
-    private static int HexCharToInt(char c)
-    {
-        if (!TryHexCharToInt(c, out var result)) result = 0;
-        return result;
-    }
-
-    private static bool TryHexCharToInt(char c, out int result)
-    {
-        result = c switch
-        {
-            >= '0' and <= '9' => c - '0',
-            >= 'A' and <= 'Z' => c - 'A' + 10,
-            >= 'a' and <= 'z' => c - 'a' + 10,
-            _ => -1,
-        };
-        return result >= 0;
     }
 
     // ReSharper disable once UnusedParameter.Local
