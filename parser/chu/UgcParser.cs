@@ -438,7 +438,8 @@ public class UgcParser: BaseChuParser
                 Type = type, Time = previousNote.EndTime, 
                 Cell = previousNote.EndCell, Width = previousNote.EndWidth, Height = previousNote.EndHeight,
                 Duration = segmentEnd - previousNote.EndTime, Tag = previousNote.Tag,
-                EndCell = endCell, EndWidth = endWidth, EndHeight = endHeight??previousNote.EndHeight,
+                EndCell = endCell, EndWidth = endWidth, 
+                EndHeight = endHeight != null ? U2C_Height(endHeight.Value) : previousNote.EndHeight,
                 Previous = foundFirst ? previousNote : null,
             };
             

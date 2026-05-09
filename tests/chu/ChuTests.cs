@@ -8,24 +8,26 @@ namespace MuConvert.Tests.chu;
 public class ChuTests
 {
     private static string TestsetDir => Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "chu", "testset");
-    private static string OfficialDir => Path.Combine(TestsetDir, "官谱", "B.B.K.K.B.K.K");
-    private static string CustomDir => Path.Combine(TestsetDir, "自制谱", "Example");
-    private static string C2sPath => Path.Combine(OfficialDir, "0003_00.c2s");
-    private static string UgcPath => Path.Combine(CustomDir, "basic.ugc");
+    private static string OfficialDir => Path.Combine(TestsetDir, "官谱");
+    private static string CustomDir => Path.Combine(TestsetDir, "自制谱");
 
-    [Fact]
-    public void CanParseOfficialC2S()
+    public static IEnumerable<object[]> OfficialC2sChartPaths()
     {
-        if (!File.Exists(C2sPath)) throw new SkipException($"Missing: {C2sPath}");
-        var (chart, _) = new C2sParser().Parse(File.ReadAllText(C2sPath));
-        Assert.NotEmpty(chart.Notes);
+        return Directory.EnumerateFiles(OfficialDir, "*.c2s", SearchOption.AllDirectories)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase).Select(path => (object[])[path]);
     }
 
-    [Fact]
-    public void C2sRoundTrip()
+    public static IEnumerable<object[]> CustomUgcChartPaths()
     {
-        if (!File.Exists(C2sPath)) throw new SkipException($"Missing: {C2sPath}");
-        var (chart, _) = new C2sParser().Parse(File.ReadAllText(C2sPath));
+        return Directory.EnumerateFiles(CustomDir, "*.ugc", SearchOption.AllDirectories)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase).Select(path => (object[])[path]);
+    }
+
+    [Theory]
+    [MemberData(nameof(OfficialC2sChartPaths))]
+    public void C2sRoundTrip(string c2sPath)
+    {
+        var (chart, _) = new C2sParser().Parse(File.ReadAllText(c2sPath));
         var (rt, _) = new C2sGenerator().Generate(chart);
         var (reparsed, _) = new C2sParser().Parse(rt);
 
@@ -51,7 +53,7 @@ public class ChuTests
     /// </summary>
     private static string SnapshotNote(ChuNote note)
     {
-        string F(object? v) => v switch
+        string F(object? v, string field) => v switch
         {
             Rational r => r.CanonicalForm.ToString(),
             List<int> list => string.Join(",", list),
@@ -65,14 +67,21 @@ public class ChuTests
             _ => v.ToString() ?? "",
         };
 
+        var firstParts = new[]
+        {
+            $"Type={note.Type}", 
+            $"Time={note.Time}", 
+            $"Cell={note.Cell}",
+            $"Width={note.Width}",
+        };
         var propParts = typeof(ChuNote).GetProperties(BindingFlags.Instance | BindingFlags.Public)
             .OrderBy(p => p.Name)
-            .Where(p => p.Name is not ("EndTime" or "Type"))
-            .Select(p => $"{p.Name}={F(p.GetValue(note))}");
+            .Where(p => p.Name is not ("EndTime" or "Type" or "Time" or "Cell" or "Width"))
+            .Select(p => $"{p.Name}={F(p.GetValue(note), p.Name)}");
         var fieldParts = typeof(ChuNote).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
             .OrderBy(f => f.Name)
-            .Select(f => $"{f.Name}={F(f.GetValue(note))}");
-        return string.Join("|", new[]{$"Type={note.Type}"}.Concat(propParts).Concat(fieldParts));
+            .Select(f => $"{f.Name}={F(f.GetValue(note), f.Name)}");
+        return string.Join("|", firstParts.Concat(propParts).Concat(fieldParts));
     }
 
     /// <summary>
@@ -82,7 +91,7 @@ public class ChuTests
     {
         var tpmUgc = ugcTicksPerBeat * 4;
         var (m, oU) = Utils.BarAndTick(n.Time, tpmUgc);
-        var oC = (int)((long)oU * c2sResolution / tpmUgc);
+        var oC = (int)Math.Round((double)oU * c2sResolution / tpmUgc);
         var time = m + new Rational(oC, c2sResolution);
         var dur = new Rational(Utils.Tick(n.Duration, c2sResolution), c2sResolution);
         return CloneChuNoteWithTiming(n, time, dur);
@@ -95,7 +104,7 @@ public class ChuTests
     {
         var tpmUgc = ugcTicksPerBeat * 4;
         var (m, oC) = Utils.BarAndTick(n.Time, c2sResolution);
-        var oU = (int)((long)oC * tpmUgc / c2sResolution);
+        var oU = (int)Math.Round((double)oC * tpmUgc / c2sResolution);
         var time = m + new Rational(oU, tpmUgc);
         var dur = new Rational(Utils.Tick(n.Duration, tpmUgc), tpmUgc);
         return CloneChuNoteWithTiming(n, time, dur);
@@ -137,31 +146,22 @@ public class ChuTests
         else
         {
             var ugcSnaps = ugc.Notes.Where(n=>n.Type != "CLICK")
-                .OrderBy(n=>n.Time).ThenBy(n=>n.Cell).ThenBy(n=>n.Width).ThenBy(n=>n.Duration).ThenBy(n=>n.Type)
+                .OrderBy(n=>n.Time).ThenBy(n=>n.Cell).ThenBy(n=>n.Width).ThenBy(n=>n.Duration).ThenBy(n=>n.Type).ThenBy(n=>n.TargetNote)
                 .Select(SnapshotNote)
                 .ToArray();
             var c2sSnaps = c2s.Notes
-                .OrderBy(n=>n.Time).ThenBy(n=>n.Cell).ThenBy(n=>n.Width).ThenBy(n=>n.Duration).ThenBy(n=>n.Type)
+                .OrderBy(n=>n.Time).ThenBy(n=>n.Cell).ThenBy(n=>n.Width).ThenBy(n=>n.Duration).ThenBy(n=>n.Type).ThenBy(n=>n.TargetNote)
                 .Select(n => SnapshotNote(C2sNoteScaledToUgcTicks(n, 480, 384)))
                 .ToArray();
             Assert.Equal(c2sSnaps, ugcSnaps);
         }
     }
 
-    [Fact]
-    public void CanParseUgc()
+    [Theory]
+    [MemberData(nameof(CustomUgcChartPaths))]
+    public void UgcToC2sViaGenerator(string ugcPath)
     {
-        if (!File.Exists(UgcPath)) throw new SkipException($"Missing: {UgcPath}");
-        var (chart, _) = new UgcParser().Parse(File.ReadAllText(UgcPath));
-        Assert.NotEmpty(chart.Notes);
-        Assert.Equal(3, chart.Difficulty);
-    }
-
-    [Fact]
-    public void UgcToC2sViaGenerator()
-    {
-        if (!File.Exists(UgcPath)) throw new SkipException($"Missing: {UgcPath}");
-        var (ugc, _) = new UgcParser().Parse(File.ReadAllText(UgcPath));
+        var (ugc, _) = new UgcParser().Parse(File.ReadAllText(ugcPath));
         Assert.NotEmpty(ugc.Notes);
 
         var (c2sText, _) = new C2sGenerator().Generate(ugc);
@@ -174,11 +174,11 @@ public class ChuTests
         AssertUgcNotesEquivalentToReparsedC2s(ugc, c2sChart, true);
     }
 
-    [Fact]
-    public void C2sToUgcViaGenerator()
+    [Theory]
+    [MemberData(nameof(OfficialC2sChartPaths))]
+    public void C2sToUgcViaGenerator(string c2sPath)
     {
-        if (!File.Exists(C2sPath)) throw new SkipException($"Missing: {C2sPath}");
-        var (c2s, _) = new C2sParser().Parse(File.ReadAllText(C2sPath));
+        var (c2s, _) = new C2sParser().Parse(File.ReadAllText(c2sPath));
         Assert.NotEmpty(c2s.Notes);
         
         var (ugcText, _) = new UgcGenerator().Generate(c2s);

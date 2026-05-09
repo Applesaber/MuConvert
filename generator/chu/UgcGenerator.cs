@@ -61,7 +61,7 @@ public class UgcGenerator : IGenerator<ChuChart>
 
         foreach (var n in ugc.Notes)
         {
-            if (IsSlideChainNote(n.Type) && n.Previous != null && IsSlideChainNote(n.Previous.Type))
+            if (IsSlideChainNote(n.Type) && IsSlideContinueSegments(n))
                 continue; // 是Slide且不是第一段Slide，则应当已经被处理过了，直接跳过
 
             var (m, o) = Utils.BarAndTick(n.Time, RSL);
@@ -140,12 +140,14 @@ public class UgcGenerator : IGenerator<ChuChart>
     private static ChuNote GetSlideHead(ChuNote n)
     {
         var cur = n;
-        while (cur.Previous != null && IsSlideChainNote(cur.Previous.Type))
-            cur = cur.Previous;
+        while (IsSlideContinueSegments(cur)) cur = cur.Previous!;
         return cur;
     }
     
     private static bool IsSlideChainNote(string t) => IsSlide(t) || IsAirSlide(t);
+    // 返回true表示，当前ChuNote对应的Slide Segment，是第二段之后（也就是接在别的segment之后）的segment，而不是首段segment，
+    private static bool IsSlideContinueSegments(ChuNote n) // Air Slide的前驱只能是Air Slide，反之亦然。
+        => (IsSlide(n) && IsSlide(n.Previous)) || (IsAirSlide(n) && IsAirSlide(n.Previous));
     private static char SlideFollowerMarker(string t) => t is "SLC" or "SXC" or "ASC" ? 'c' : 's';
 
     private static string EncodeAirHeight(decimal value) => IToH36((int)Math.Round(C2U_Height(value) * 10));

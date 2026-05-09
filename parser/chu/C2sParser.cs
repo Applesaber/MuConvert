@@ -130,7 +130,7 @@ public class C2sParser: BaseChuParser
                 }
                 note.Cell = Int(p, 3); note.Width = Math.Max(1, Int(p, 4, 1));
                 targetNote = Str(p, 5);
-                note.Height = Int(p, 6); note.EndHeight = Int(p, 10);
+                note.Height = Decimal(p, 6, 5); note.EndHeight = Decimal(p, 10, 5);
                 note.Duration = new Rational(Int(p, 7), RSL);
                 note.EndCell = Int(p, 8); note.EndWidth = Math.Max(1, Int(p, 9, 1));
                 note.Tag = Str(p, 11);
@@ -144,7 +144,7 @@ public class C2sParser: BaseChuParser
                 }
                 note.Cell = Int(p, 3); note.Width = Math.Max(1, Int(p, 4, 1));
                 note.CrushInterval = Int(p, 5);
-                note.Height = Int(p, 6); note.EndHeight = Int(p, 10);
+                note.Height = Decimal(p, 6, 5); note.EndHeight = Decimal(p, 10, 5);
                 note.Duration = new Rational(Int(p, 7), RSL);
                 note.EndCell = Int(p, 8); note.EndWidth = Math.Max(1, Int(p, 9, 1));
                 note.Tag = Str(p, 11);
@@ -158,5 +158,6 @@ public class C2sParser: BaseChuParser
     }
 
     private static int Int(string[] p, int i, int def = 0) => i < p.Length && int.TryParse(p[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : def;
+    private static decimal Decimal(string[] p, int i, decimal def = 0) => i < p.Length && decimal.TryParse(p[i], CultureInfo.InvariantCulture, out var v) ? v : def;
     private static string Str(string[] p, int i) => i < p.Length ? p[i] : "";
 }

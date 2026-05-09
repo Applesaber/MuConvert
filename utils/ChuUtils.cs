@@ -45,14 +45,14 @@ public class ChuUtils
     // 是否是广义的air音符（Air/Air Hold/Air Slide/Air Crush）
     public static bool IsGeneralizedAir(string t) => IsAir(t) || IsAirHold(t) || IsAirSlide(t) || IsAirCrush(t);
     
-    public static bool IsHold(ChuNote n) => IsHold(n.Type);
-    public static bool IsSlide(ChuNote n) => IsSlide(n.Type);
-    public static bool IsAirSlide(ChuNote n) => IsAirSlide(n.Type);
-    public static bool IsAir(ChuNote n) => IsAir(n.Type);
-    public static bool IsAirHold(ChuNote n) => IsAirHold(n.Type);
-    public static bool IsAirCrush(ChuNote n) => IsAirCrush(n.Type);
+    public static bool IsHold(ChuNote? n) => IsHold(n?.Type!);
+    public static bool IsSlide(ChuNote? n) => IsSlide(n?.Type!);
+    public static bool IsAirSlide(ChuNote? n) => IsAirSlide(n?.Type!);
+    public static bool IsAir(ChuNote? n) => IsAir(n?.Type!);
+    public static bool IsAirHold(ChuNote? n) => IsAirHold(n?.Type!);
+    public static bool IsAirCrush(ChuNote? n) => IsAirCrush(n?.Type!);
     // 是否是广义的air音符（Air/Air Hold/Air Slide/Air Crush）
-    public static bool IsGeneralizedAir(ChuNote n) => IsGeneralizedAir(n.Type);
+    public static bool IsGeneralizedAir(ChuNote? n) => IsGeneralizedAir(n?.Type!);
 
     public static bool TryH36ToI(string str, out int result) => Utils.TryHToI(str, 36, out result);
     public static string IToH36(int value) => Utils.IToH(value, 36);

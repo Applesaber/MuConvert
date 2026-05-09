@@ -38,7 +38,8 @@ public abstract class BaseChuParser : IParser<ChuChart>
             if (cur.Previous != null) continue; // 若某些 parser 已提前填了 Previous，则保留
 
             var key = (cur.Time, cur.Cell, cur.Width);
-            var filtered = FilterPreviousCandidates(cur, endDict.GetValueOrDefault(key, []));
+            var candidates = endDict.GetValueOrDefault(key, []);
+            var filtered = FilterPreviousCandidates(cur, candidates);
 
             if (rawTargetNote != null && rawTargetNote.TryGetValue(cur, out var target) && !string.IsNullOrEmpty(target))
             {
@@ -50,13 +51,17 @@ public abstract class BaseChuParser : IParser<ChuChart>
                 else filtered = filteredByRaw; // 缩小目标范围
             }
 
-            if (filtered.Count > 0) cur.Previous = filtered[0]; // 取第一个
+            if (filtered.Count > 0)
+            {
+                cur.Previous = filtered[0]; // 取第一个
+                candidates.Remove(filtered[0]);
+            }
         }
     }
 
     private static bool NeedsPrevious(ChuNote n)
     {
-        return IsSlide(n.Type) || IsGeneralizedAir(n);
+        return IsSlide(n.Type) || IsAir(n.Type) || IsAirHold(n.Type) || IsAirSlide(n.Type);
     }
     
     private static List<ChuNote> FilterPreviousCandidates(ChuNote cur, List<ChuNote> candidates)
@@ -74,7 +79,7 @@ public abstract class BaseChuParser : IParser<ChuChart>
         }
         else if (IsAir(cur.Type) || IsAirHold(cur.Type))
         { // Air 系列：依附在一个“非广义Air”的音符上
-            return candidates.Where(n => IsLegalPreviousForAir(n.Type)).ToList();
+            result.AddRange(candidates.Where(n => IsLegalPreviousForAir(n.Type)).ToList());
         }
         return result;
         

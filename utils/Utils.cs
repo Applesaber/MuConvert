@@ -155,7 +155,7 @@ public static class ExtensionUtils
     }
     
     // 工作范围仅限正数
-    public static Rational Ceil(this Rational r)
+    public static BigInteger Ceil(this Rational r)
     {
         if (r < 0) throw new ArgumentOutOfRangeException(nameof(r));
         return r.WholePart + (r.FractionPart == 0 ? 0 : 1);
