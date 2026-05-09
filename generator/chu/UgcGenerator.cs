@@ -84,7 +84,7 @@ public class UgcGenerator : IGenerator<ChuChart>
                         var endTicks = Utils.Tick(seg.EndTime - n.Time, RSL);
                         if (endTicks <= 0) continue;
                         if (isAir)
-                            sb.AppendLine($"#{endTicks}>{SlideFollowerMarker(seg.Type)}{IToH36(seg.EndCell)}{IToH36(seg.EndWidth)}{EncodeUgcAirHeight2(AirSlideFollowerHeight(seg))}");
+                            sb.AppendLine($"#{endTicks}>{SlideFollowerMarker(seg.Type)}{IToH36(seg.EndCell)}{IToH36(seg.EndWidth)}{EncodeAirHeight(seg.EndHeight)}");
                         else
                             sb.AppendLine($"#{endTicks}>{SlideFollowerMarker(seg.Type)}{IToH36(seg.EndCell)}{IToH36(seg.EndWidth)}");
                     }
@@ -148,22 +148,11 @@ public class UgcGenerator : IGenerator<ChuChart>
     private static bool IsSlideChainNote(string t) => IsSlide(t) || IsAirSlide(t);
     private static char SlideFollowerMarker(string t) => t is "SLC" or "SXC" or "ASC" ? 'c' : 's';
 
-    /// <summary> C2S col.6 / follower height: integer stored as two base-36 digits (Umiguri v8 AIR-SLIDE). </summary>
-    private static string EncodeUgcAirHeight2(int value)
-    {
-        var v = Math.Clamp(value * 10, 0, 35 * 36 + 35);
-        var hi = v / 36;
-        var lo = v % 36;
-        return $"{IToH36(hi)}{IToH36(lo)}";
-    }
-
-    private static int AirSlideParentStartHeight(ChuNote head) => 8; // TODO 现在暂时写死，之后应该改成从ExtraData等地方读取
-    private static int AirSlideFollowerHeight(ChuNote seg) => 8; // TODO 现在暂时写死，之后应该改成从ExtraData等地方读取
+    private static string EncodeAirHeight(decimal value) => IToH36((int)Math.Round(C2U_Height(value) * 10));
     
     private static string UCode(ChuNote n)
     {
         string c = IToH36(n.Cell), w = IToH36(n.Width);
-        var targetNote = string.IsNullOrEmpty(n.TargetNote) ? "N" : n.TargetNote;
         return n.Type switch
         {
             "TAP" => $"t{c}{w}",
@@ -171,13 +160,14 @@ public class UgcGenerator : IGenerator<ChuChart>
             "HLD" or "HXD" => $"h{c}{w}",
             "SLD" or "SXD" => $"s{c}{w}",
             "SLC" or "SXC" => $"s{c}{w}",
-            "FLK" => $"f{c}{w}A",
+            "FLK" => $"f{c}{w}{n.Tag}",
             "MNE" => $"d{c}{w}",
             // AIR-SLIDE (v8): #BarTick:S x w hh c
-            "ASD" or "ASC" => $"S{c}{w}{EncodeUgcAirHeight2(AirSlideParentStartHeight(n))}{C2U_AirColor.GetValueOrDefault(n.Tag, "N")}",
-            "AIR" or "AUR" or "AUL" or "ADW" or "ADR" or "ADL" => $"a{c}{w}{C2U_AirDirections[n.Type]}{targetNote}{C2U_AirColor.GetValueOrDefault(n.Tag, "N")}",
+            "ASD" or "ASC" => $"S{c}{w}{EncodeAirHeight(n.Height)}{C2U_AirColor.GetValueOrDefault(n.Tag, "N")}",
+            "AIR" or "AUR" or "AUL" or "ADW" or "ADR" or "ADL" => $"a{c}{w}{C2U_AirDirections[n.Type]}{C2U_AirColor.GetValueOrDefault(n.Tag, "N")}",
             // AIR-HOLD (v8): #BarTick:H x w c + 子行 #OffsetTick:s / :c（见 Umiguri Chart v8 doc）
             "AHD" or "AHX" => $"H{c}{w}{C2U_AirColor.GetValueOrDefault(n.Tag, "N")}",
+            "ALD" => "", // TODO
             _ => ""
         };
     }

@@ -130,21 +130,24 @@ public class C2sParser: BaseChuParser
                 }
                 note.Cell = Int(p, 3); note.Width = Math.Max(1, Int(p, 4, 1));
                 targetNote = Str(p, 5);
-                note.ExtraData = [Int(p, 6), Int(p, 10)];
+                note.Height = Int(p, 6); note.EndHeight = Int(p, 10);
                 note.Duration = new Rational(Int(p, 7), RSL);
                 note.EndCell = Int(p, 8); note.EndWidth = Math.Max(1, Int(p, 9, 1));
                 note.Tag = Str(p, 11);
                 break;
             case "ALD":
-                // 文档：M O Cell Width | 未知×3 | EndCell | EndWidth | 未知（1 或 3）
+                // 根据 https://github.com/MuNET-OSS/MuConvert/pull/3#issuecomment-4405859671 实现
                 if (p.Length < 11)
                 {
                     alerts.Add(new Alert(Warning, "ALD 列数不足（期望至少 11 列）") { Line = lineNum });
                     return;
                 }
                 note.Cell = Int(p, 3); note.Width = Math.Max(1, Int(p, 4, 1));
-                note.ExtraData = [Int(p, 5), Int(p, 6), Int(p, 7), Int(p, 10)];
+                note.CrushInterval = Int(p, 5);
+                note.Height = Int(p, 6); note.EndHeight = Int(p, 10);
+                note.Duration = new Rational(Int(p, 7), RSL);
                 note.EndCell = Int(p, 8); note.EndWidth = Math.Max(1, Int(p, 9, 1));
+                note.Tag = Str(p, 11);
                 break;
             default:
                 alerts.Add(new Alert(Warning, string.Format(Locale.C2SUnknownNoteType, tag)) { Line = lineNum }); return;

@@ -30,6 +30,9 @@ public class ChuUtils
     };
     public static readonly Dictionary<string, string> C2U_AirColor = ReverseDict(U2C_AirColor);
 
+    public static decimal U2C_Height(decimal input) => input / 1.6m;
+    public static decimal C2U_Height(decimal input) => input * 1.6m;
+
     private static Dictionary<string, string> ReverseDict(Dictionary<string, string> dict) =>
         dict.ToDictionary(x => x.Value, x => x.Key);
     

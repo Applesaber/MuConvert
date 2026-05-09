@@ -51,24 +51,28 @@ public class ChuTests
     /// </summary>
     private static string SnapshotNote(ChuNote note)
     {
-        static string F(object? v) => v switch
+        string F(object? v) => v switch
         {
             Rational r => r.CanonicalForm.ToString(),
             List<int> list => string.Join(",", list),
-            string s => s == "DEF" ? "" : s,
+            string s => s switch
+            {
+                "DEF" => "",
+                "A" when note.Type == "FLK" => "L",
+                _ => s
+            },
             null => "",
             _ => v.ToString() ?? "",
         };
 
         var propParts = typeof(ChuNote).GetProperties(BindingFlags.Instance | BindingFlags.Public)
             .OrderBy(p => p.Name)
-            .Where(p => p.Name != nameof(ChuNote.EndTime))
+            .Where(p => p.Name is not ("EndTime" or "Type"))
             .Select(p => $"{p.Name}={F(p.GetValue(note))}");
         var fieldParts = typeof(ChuNote).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
             .OrderBy(f => f.Name)
-            .Where(f => f.Name != nameof(ChuNote.ExtraData))
             .Select(f => $"{f.Name}={F(f.GetValue(note))}");
-        return string.Join("|", propParts.Concat(fieldParts));
+        return string.Join("|", new[]{$"Type={note.Type}"}.Concat(propParts).Concat(fieldParts));
     }
 
     /// <summary>
@@ -108,7 +112,9 @@ public class ChuTests
         EndWidth = n.EndWidth,
         Previous = n.Previous,
         Tag = n.Tag,
-        ExtraData = [..n.ExtraData],
+        Height = n.Height,
+        EndHeight = n.EndHeight,
+        CrushInterval = n.CrushInterval,
     };
 
     /// <summary>

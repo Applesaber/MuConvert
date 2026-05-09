@@ -67,13 +67,15 @@ public class C2sGenerator : IGenerator<ChuChart>
         return sb.ToString();
     }
 
-    private static List<string> allowedAirColors = ["DEF"]; // TODO 搞清楚UGC里的'I'颜色，在C2S里，对应的字符串是什么
+    private static List<string> allowedAirColors = ["DEF", "I"]; // TODO 搞清楚UGC里的'I'颜色，在C2S里，对应的字符串是什么
     private static string AirColorTag(ChuNote n)
     {
         if (allowedAirColors.Contains(n.Tag)) return n.Tag;
         else return "DEF";
     }
 
+    private static string FLKTag(ChuNote n) => n.Tag is "L" or "R" ? n.Tag : "L";
+    
     private static string? FormatNote(ChuNote n, int tpm, List<Alert> alerts)
     {
         var (m, o) = Utils.BarAndTick(n.Time, tpm);
@@ -84,12 +86,12 @@ public class C2sGenerator : IGenerator<ChuChart>
             "CHR" => $"CHR\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.Tag}",
             "HLD" or "HXD" => $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{durTicks}",
             "SLD" or "SLC" or "SXD" or "SXC" => $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}",
-            "FLK" => $"FLK\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.Tag}",
+            "FLK" => $"FLK\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{FLKTag(n)}",
             "AIR" or "AUR" or "AUL" or "ADW" or "ADR" or "ADL" =>
                     $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{AirColorTag(n)}",
             "AHD" or "AHX" => $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{durTicks}\t{AirColorTag(n)}",
             "ASD" or "ASC" => FormatAsdAsc(n, m, o, durTicks),
-            "ALD" => FormatAld(n, m, o),
+            "ALD" => FormatAld(n, m, o, durTicks),
             "MNE" => $"MNE\t{m}\t{o}\t{n.Cell}\t{n.Width}",
             _ => alert(),
         };
@@ -103,17 +105,11 @@ public class C2sGenerator : IGenerator<ChuChart>
 
     private static string FormatAsdAsc(ChuNote n, int m, int o, int durTicks)
     {
-        var e0 = n.ExtraData.Count > 0 ? n.ExtraData[0] : 5;
-        var e1 = n.ExtraData.Count > 1 ? n.ExtraData[1] : 5;
-        return $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{e0}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}\t{e1}\t{AirColorTag(n)}";
+        return $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{n.Height}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}\t{n.EndHeight}\t{AirColorTag(n)}";
     }
 
-    private static string FormatAld(ChuNote n, int m, int o)
+    private static string FormatAld(ChuNote n, int m, int o, int durTicks)
     {
-        var a = n.ExtraData.Count > 0 ? n.ExtraData[0] : 0;
-        var b = n.ExtraData.Count > 1 ? n.ExtraData[1] : 0;
-        var c = n.ExtraData.Count > 2 ? n.ExtraData[2] : 0;
-        var tail = n.ExtraData.Count > 3 ? n.ExtraData[3] : 0;
-        return $"ALD\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{a}\t{b}\t{c}\t{n.EndCell}\t{n.EndWidth}\t{tail}";
+        return $"ALD\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.CrushInterval}\t{n.Height}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}\t{n.EndHeight}";
     }
 }

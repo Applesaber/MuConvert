@@ -15,6 +15,7 @@ namespace MuConvert.chu;
 public class UgcParser: BaseChuParser
 {
     private static int RSL = 480 * 4;
+    private int Version = 8;
 
     public override (ChuChart, List<Alert>) Parse(string text)
     {
@@ -67,7 +68,7 @@ public class UgcParser: BaseChuParser
         chart.SflList = chart.SflList.Where(x => x.Multiplier != 1).ToList(); // 倍率为1的，没必要放进来的
     }
 
-    private static void ParseHeaderLine(string line, ChuChart chart, List<Alert> alerts, int lineNum)
+    private void ParseHeaderLine(string line, ChuChart chart, List<Alert> alerts, int lineNum)
     {
         if (!line.StartsWith('@'))
         {
@@ -173,8 +174,12 @@ public class UgcParser: BaseChuParser
                 }
                 break;
 
+            case "@VER":
+                Version = int.Parse(value);
+                break;
+            
             // silently ignored metadata tags
-            case "@VER": case "@EXVER": case "@SORT": case "@BGM": case "@BGMOFS": case "@BGMPRV":
+            case "@EXVER": case "@SORT": case "@BGM": case "@BGMOFS": case "@BGMPRV":
             case "@JACKET": case "@BGIMG": case "@BGMODE": case "@FLDCOL": case "@FLDIMG":
             case "@FLAG": case "@ATINFO": case "@DLURL": case "@COPYRIGHT": case "@LICENSE":
             case "@MAINTIL": case "@TIL":
@@ -214,7 +219,7 @@ public class UgcParser: BaseChuParser
             && int.TryParse(measureTick[(ap + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out tick);
     }
 
-    private static int ParseNoteLine(string[] lines, int idx, ChuChart chart, List<Alert> alerts)
+    private int ParseNoteLine(string[] lines, int idx, ChuChart chart, List<Alert> alerts)
     {
         var line = lines[idx];
         var lineNum = idx + 1;
@@ -287,7 +292,6 @@ public class UgcParser: BaseChuParser
                 ParseAirNote(code, note, alerts, lineNum, chart);
                 break;
             case 'C': // Air Crush
-            case 'T': // 暂时不确定这是什么，只出现在v7以前版本中，v8开始已经没有了
                 idx = ParseAirCrushNote(lines, idx, code, note, alerts, chart);
                 note = null;
                 break;
@@ -295,8 +299,7 @@ public class UgcParser: BaseChuParser
             case 'f':
                 note.Type = "FLK";
                 ParseCellWidth(code, 1, note, alerts, lineNum, chart);
-                if (code.Length > 3)
-                    note.Tag = code[3..];
+                if (code.Length > 3) note.Tag = code[3..];
                 break;
 
             case 'c': // Umiguri的CLICK音符，疑似在C2s中是没有对应的。这个音符没有Cell和Width，除了Type什么都没有，所以直接存下来就可以了。
@@ -309,7 +312,18 @@ public class UgcParser: BaseChuParser
                 break;
 
             default:
-                alerts.Add(new Alert(Warning, $"未知的音符类型前缀 '{typeChar}': {line}") { Line = lineNum });
+                alerts.Add(new Alert(Warning, $"未知的音符类型前缀 '{typeChar}': {line}", note.Time, (double)chart.ToSecond(note.Time), lineNum, line));
+                // 如果后面跟的是跟随行（子ノーツ）而非主行（親ノーツ）的话，把它们全部消耗掉
+                while (idx + 1 < lines.Length)
+                {
+                    var nextLine = lines[idx + 1].Trim();
+                    if (!TryParseFollowerLine(nextLine, out _, out _, out _, out _, out _, false))
+                    {
+                        if (nextLine.StartsWith('\'') || nextLine.StartsWith('@')) { idx++; continue; }
+                        break;
+                    }
+                    idx++;
+                }
                 return idx;
         }
 
@@ -329,16 +343,51 @@ public class UgcParser: BaseChuParser
         }
     }
 
-    private static int ParseHoldNote(bool isAirHold, string[] lines, int idx, string code, ChuNote note, List<Alert> alerts, ChuChart chart)
+    private void ParseHeightAndColor(ChuNote n, string str, List<Alert> alerts, string noteType="") // 需要传入noteType是因为，不同版本的不同类型note在实现上还略有区别的。
+    {
+        if (string.IsNullOrEmpty(str)) return;
+        if (str.Length == 1 && noteType is "H" or "S" && Version < 6)
+        { // 老版本的:H和:S，单独的一位是height而不是颜色，因此不能套用下面的逻辑
+            if (TryH36ToI(str, out var height)) n.Height = U2C_Height(height);
+            else alerts.Add(new Alert(Warning, "解析Air系列音符的高度属性失败！", n.Time, null, null, FormatNoteRef(n, str)));
+            return;
+        }
+        
+        // 先尝试解析interval
+        var posOfComma = str.IndexOf(',');
+        if (posOfComma >= 0)
+        {
+            var intervalStr = str[(posOfComma+1)..];
+            str = str[..posOfComma];
+            if (intervalStr == "$") n.CrushInterval = 38400;
+            else if (int.TryParse(intervalStr, out var interval)) n.CrushInterval = interval;
+            else alerts.Add(new Alert(Warning, "解析Air-Crush的interval属性失败！", n.Time, null, null, FormatNoteRef(n, str)));
+        }
+        else if (noteType is "C" && str.Length == 2 && Version < 8)
+        {
+            var intervalStr = str.Last();
+            str = str[..^1] + "N";
+            if (intervalStr == 'Z') n.CrushInterval = 38400;
+            else if (TryHToI(intervalStr, out var interval)) n.CrushInterval = interval;
+            else alerts.Add(new Alert(Warning, "解析Air-Crush的interval属性失败！", n.Time, null, null, FormatNoteRef(n, str)));
+        }
+
+        // 剩的部分都满足：最后一位是颜色，前面是高度
+        if (str.Length > 0) n.Tag = U2C_AirColor.GetValueOrDefault(str.Last().ToString(), "");
+        if (str.Length > 1)
+        {
+            var heightStr = str[..^1];
+            if (TryH36ToI(str[..^1], out var height)) 
+                n.Height = U2C_Height(heightStr.Length == 1 ? height : height / 10m); // 一位时不用除以10，两位时需要除以10
+            else alerts.Add(new Alert(Warning, "解析Air系列音符的高度属性失败！", n.Time, null, null, FormatNoteRef(n, str)));
+        }
+    }
+
+    private int ParseHoldNote(bool isAirHold, string[] lines, int idx, string code, ChuNote note, List<Alert> alerts, ChuChart chart)
     {
         note.Type = isAirHold ? "AHD" : "HLD";
         ParseCellWidth(code, 1, note, alerts, idx + 1, chart);
-
-        if (isAirHold)
-        {
-            var colorChar = code.Last(); // 颜色标记 N/I
-            note.Tag = U2C_AirColor.GetValueOrDefault(colorChar.ToString(), "");
-        }
+        if (isAirHold) ParseHeightAndColor(note, code[3..], alerts, "H");
 
         bool foundFirst = false;
         while (idx + 1 < lines.Length)
@@ -361,28 +410,21 @@ public class UgcParser: BaseChuParser
         return idx;
     }
 
-    private static int ParseSlideNote(bool isAirSlide, string[] lines, int idx, string code, ChuNote previousNote, List<Alert> alerts, ChuChart chart)
+    private int ParseSlideNote(bool isAirSlide, string[] lines, int idx, string code, ChuNote previousNote, List<Alert> alerts, ChuChart chart)
     {
         // 注：一开始从外面传进来的previousNote，最后并不会被添加进chart里，只是作为第一段的起点参照而已。
         var startTime = previousNote.Time;
         ParseCellWidth(code, 1, previousNote, alerts, idx + 1, chart);
+        if (isAirSlide) ParseHeightAndColor(previousNote, code[3..], alerts, "S");
         previousNote.EndCell = previousNote.Cell;
         previousNote.EndWidth = previousNote.Width;
-
-        string colorTag = "";
-        if (isAirSlide)
-        {
-            var colorChar = code.Last(); // 颜色标记 N/I
-            colorTag = U2C_AirColor.GetValueOrDefault(colorChar.ToString(), "");
-            // 解析高度数据。目前只解析、不使用。
-            TryH36ToI(code[3..^1], out _); // out var startHeight 起始的高度值
-        }
+        previousNote.EndHeight = previousNote.Height;
 
         bool foundFirst = false;
         while (idx + 1 < lines.Length)
         { // 循环处理所有的跟随行。idx始终指向上一条已经处理完的行。
             var nextLine = lines[idx + 1].Trim();
-            if (!TryParseFollowerLine(nextLine, out var marker, out var duration, out var endCell, out var endWidth, out _, true))
+            if (!TryParseFollowerLine(nextLine, out var marker, out var duration, out var endCell, out var endWidth, out var endHeight, true))
             {
                 if (nextLine.StartsWith('\'') || nextLine.StartsWith('@')) { idx++; continue; }
                 break;
@@ -394,12 +436,11 @@ public class UgcParser: BaseChuParser
             var note = new ChuNote
             {
                 Type = type, Time = previousNote.EndTime, 
-                Cell = previousNote.EndCell, Width = previousNote.EndWidth,
-                Duration = segmentEnd - previousNote.EndTime, 
-                EndCell = endCell, EndWidth = endWidth,
+                Cell = previousNote.EndCell, Width = previousNote.EndWidth, Height = previousNote.EndHeight,
+                Duration = segmentEnd - previousNote.EndTime, Tag = previousNote.Tag,
+                EndCell = endCell, EndWidth = endWidth, EndHeight = endHeight??previousNote.EndHeight,
                 Previous = foundFirst ? previousNote : null,
             };
-            if (isAirSlide) note.Tag = colorTag;
             
             chart.Notes.Add(note);
             previousNote = note;
@@ -413,7 +454,7 @@ public class UgcParser: BaseChuParser
         return idx;
     }
     
-    private static bool TryParseFollowerLine(string line, out string marker, out int endTick, out int endCell, out int endWidth, out int? height, bool requireEndCellWidth)
+    private static bool TryParseFollowerLine(string line, out string marker, out int endTick, out int endCell, out int endWidth, out decimal? height, bool requireEndCellWidth)
     {
         endTick = 0;
         endCell = 0;
@@ -440,7 +481,11 @@ public class UgcParser: BaseChuParser
         }
         else if (requireEndCellWidth) return false;
 
-        if (afterMarker.Length > 2 && TryH36ToI(afterMarker[2..], out var heightV)) height = heightV;
+        if (afterMarker.Length > 2)
+        {
+            var heightStr = afterMarker[2..];
+            if (TryH36ToI(heightStr, out var r)) height = heightStr.Length == 1 ? r : r / 10m;
+        }
 
         return true;
     }
@@ -461,7 +506,7 @@ public class UgcParser: BaseChuParser
         }
     }
 
-    private static void ParseAirNote(string code, ChuNote note, List<Alert> alerts, int lineNum, ChuChart chart)
+    private void ParseAirNote(string code, ChuNote note, List<Alert> alerts, int lineNum, ChuChart chart)
     {
         if (code.Length < 5)
         {
@@ -471,7 +516,7 @@ public class UgcParser: BaseChuParser
         }
 
         ParseCellWidth(code, 1, note, alerts, lineNum, chart);
-        var mainPart = code[3..5];
+        var mainPart = code[3..];
 
         if (mainPart.Length < 2)
         {
@@ -490,6 +535,7 @@ public class UgcParser: BaseChuParser
             note.Type = "AIR";
             alerts.Add(new Alert(Warning, $"未知的 AIR 方向: {dir}") { Line = lineNum, RelevantNote = FormatNoteRef(note, code) });
         }
+        ParseHeightAndColor(note, mainPart[2..], alerts, "a");
     }
 
     private static int ParseAirCrushNote(string[] lines, int idx, string code, ChuNote previousNote, List<Alert> alerts, ChuChart chart)
