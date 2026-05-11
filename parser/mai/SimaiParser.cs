@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Globalization;
+using System.Text.RegularExpressions;
 using Antlr4.Runtime;
 using Antlr4.Runtime.Misc;
 using Antlr4.Runtime.Tree;
@@ -409,7 +410,7 @@ public partial class SimaiParser : SimaiBaseVisitor<object>, IParser<MaiChart>
     
     public sealed override object VisitNumber(P.NumberContext context)
     {
-        return decimal.Parse(context.GetText());
+        return decimal.Parse(context.GetText(), CultureInfo.InvariantCulture);
     }
 
     private void ApplyModifiers(P.ModifiersContext[] modifiersList, Note note, bool clearExtraArr = true)
