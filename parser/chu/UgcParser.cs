@@ -364,14 +364,6 @@ public class UgcParser: BaseChuParser
             else if (int.TryParse(intervalStr, out var interval)) n.CrushInterval = interval;
             else alerts.Add(new Alert(Warning, "解析Air-Crush的interval属性失败！", n.Time, null, lineNum, FormatNoteRef(n, str)));
         }
-        else if (noteType is "C" && str.Length == 2 && Version < 8)
-        {
-            var intervalStr = str.Last();
-            str = str[..^1] + "N";
-            if (intervalStr == 'Z') n.CrushInterval = 38400;
-            else if (TryHToI(intervalStr, out var interval)) n.CrushInterval = interval;
-            else alerts.Add(new Alert(Warning, "解析Air-Crush的interval属性失败！", n.Time, null, lineNum, FormatNoteRef(n, str)));
-        }
 
         // 剩的部分都满足：最后一位是颜色，前面是高度
         if (str.Length > 0)
@@ -544,25 +536,42 @@ public class UgcParser: BaseChuParser
         ParseHeightAndColor(note, mainPart[2..], alerts, lineNum, "a");
     }
 
-    private static int ParseAirCrushNote(string[] lines, int idx, string code, ChuNote previousNote, List<Alert> alerts, ChuChart chart)
+    private int ParseAirCrushNote(string[] lines, int idx, string code, ChuNote note, List<Alert> alerts, ChuChart chart)
     {
-        // TODO 尚未实现，所以先给个警告
-        alerts.Add(new Alert(Warning, "当前版本尚未实现对Air-Crush(UMIGURI的':C'或':T'音符)的解析。") { Line = idx, RelevantNote = lines[idx] });
+        note.Type = "ALD";
+        ParseCellWidth(code, 1, note, alerts, idx + 1, chart);
+        if (code.Length <= 3) alerts.Add(new Alert(Warning, "AirCrush缺少参数！", note.Time, (double)chart.ToSecond(note.Time), idx+1, lines[idx]));
+        else ParseHeightAndColor(note, code[3..], alerts, idx+1, "C");
         
         bool foundFirst = false;
+        bool intervalSet = Version >= 8;
         while (idx + 1 < lines.Length)
-        { // 循环处理所有的跟随行。idx始终指向上一条已经处理完的行。
+        {
             var nextLine = lines[idx + 1].Trim();
-            if (!TryParseFollowerLine(nextLine, out var marker, out var duration, out _, out _, out _, false))
+            if (!TryParseFollowerLine(nextLine, out var marker, out var endTick, out var endCell, out var endWidth, out var endHeight, Version >= 8))
             {
                 if (nextLine.StartsWith('\'') || nextLine.StartsWith('@')) { idx++; continue; }
                 break;
             }
             
-            // TODO 尚未实现
+            if (Version >= 8 && marker != "c")
+                alerts.Add(new Alert(Warning, $"Air-Crush（v8）子行标记应为 'c'，实际为 '{marker}'", note.Time, (double)chart.ToSecond(note.Time), idx + 1, nextLine));
+
+            if (Version <= 6 && !intervalSet && marker == "s")
+            {
+                note.CrushInterval = endTick;
+                intervalSet = true;
+            }
+            
+            note.Duration = new Rational(endTick, RSL);
+            if (endCell != null) note.EndCell = endCell.Value;
+            if (endWidth != null) note.EndWidth = endWidth.Value;
+            if (endHeight != null) note.EndHeight = U2C_Height(endHeight.Value);
+
             idx++;
             foundFirst = true;
         }
+        chart.Notes.Add(note);
 
         if (!foundFirst)
             alerts.Add(new Alert(Warning, $"air-crush 音符缺少时长跟随行") { Line = idx + 1, RelevantNote = lines[idx] });

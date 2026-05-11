@@ -109,6 +109,7 @@ public class ChuTests
     private static bool TagsEquivalent(ChuNote e, ChuNote a)
     {
         if (e.Tag == a.Tag) return true;
+        if (e.Type == "ALD") return true; // C2S的ALD行，根据观测，是不支持颜色tag的。因此不要比较
         if (ChuUtils.IsGeneralizedAir(e))
         {
             if ((e.Tag == "DEF" && a.Tag == "") || (e.Tag == "" && a.Tag == "DEF"))

@@ -100,6 +100,8 @@ public class UgcGenerator : IGenerator<ChuChart>
                 var marker = (n.Type == "AHX") ? 'c' : 's';
                 sb.AppendLine($"#{durTicks}>{marker}");
             }
+            else if (n.Type is "ALD" && durTicks > 0)
+                sb.AppendLine($"#{durTicks}>c{IToH36(n.EndCell)}{IToH36(n.EndWidth)}{EncodeAirHeight(n.EndHeight)}");
         }
         return sb.ToString();
     }
@@ -150,7 +152,10 @@ public class UgcGenerator : IGenerator<ChuChart>
         => (IsSlide(n) && IsSlide(n.Previous)) || (IsAirSlide(n) && IsAirSlide(n.Previous));
     private static char SlideFollowerMarker(string t) => t is "SLC" or "SXC" or "ASC" ? 'c' : 's';
 
-    private static string EncodeAirHeight(decimal value) => IToH36((int)Math.Round(C2U_Height(value) * 10));
+    private static string EncodeAirHeight(decimal value) => IToH36((int)Math.Round(C2U_Height(value) * 10)).PadLeft(2, '0');
+    
+    private static string CrushColor(string t) => C2U_AirColor.GetValueOrDefault(t, t.Length > 0 ? t[..1] : "0");
+    private static string CrushInterval(int crushInterval) => crushInterval > 10000 ? "$" : crushInterval.ToString();
     
     private static string UCode(ChuNote n)
     {
@@ -169,7 +174,7 @@ public class UgcGenerator : IGenerator<ChuChart>
             "AIR" or "AUR" or "AUL" or "ADW" or "ADR" or "ADL" => $"a{c}{w}{C2U_AirDirections[n.Type]}{C2U_AirColor.GetValueOrDefault(n.Tag, "N")}",
             // AIR-HOLD (v8): #BarTick:H x w c + 子行 #OffsetTick:s / :c（见 Umiguri Chart v8 doc）
             "AHD" or "AHX" => $"H{c}{w}{C2U_AirColor.GetValueOrDefault(n.Tag, "N")}",
-            "ALD" => "", // TODO
+            "ALD" => $"C{c}{w}{EncodeAirHeight(n.Height)}{CrushColor(n.Tag)},{CrushInterval(n.CrushInterval)}",
             _ => ""
         };
     }
