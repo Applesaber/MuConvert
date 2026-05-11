@@ -1,7 +1,10 @@
-MuConvert - 支持Simai与MA2谱面互转的新一代转谱器
+MuConvert - 新一代多功能音游转谱器
 ================
 
-MuConvert 是一个支持**Simai与MA2互转**的转谱器。
+MuConvert 是一个多功能的音游转谱器。目前支持maimai、chunithm的谱面格式转换，未来还可能加入更多游戏/更多格式支持。
+- maimai：支持 Simai（自制谱社区最主流格式，[MajdataEdit](https://majdata.net/edit)、[Visual Maimai](https://github.com/CH3COOOHH/Visual-Maimai-Release)等都是这种格式）与 MA2（官方游戏格式）的双向互转。
+- chunithm：支持 UGC（[Umiguri](https://umgr.inonote.jp/en/)的格式）与 C2S（官方游戏格式）的双向互转；
+  - 此外，还实验性地支持SUS与上述格式的双向互转（注意目前支持还不太完善，可能有较多bug，如遇bug欢迎反馈）
 
 > Kind reminder: To reduce developers’ workload, this README is maintained only in Chinese. We recommend using an LLM to translate and read this document.
 
@@ -36,8 +39,9 @@ MuConvert.exe <path> [-l|--levels N[,N...]] [-t|--target <format>] [-o|--output 
 - **`-l, --levels`**：仅转换指定难度（以 `maidata.txt` 的 `&inote_编号` 为准），多个难度用英文逗号分隔；省略则转换全部难度
 - **`-t, --target`**：强制指定输出格式（不区分大小写）。
   - 多数情况下不需要指定，直接使用默认值即可。默认值根据输入类型的不同而不同，但一般来说能满足常见的场景需求。
-    - 具体而言，默认的转换输出格式为：Simai → `ma2`，MA2 → `simai`，C2S → `ugc`，UGC/SUS → `c2s`。
+    - 具体而言，默认的转换输出格式为：Simai → `ma2`，MA2 → `Simai`，C2S → `ugc`，UGC/SUS → `c2s`。
   - 目前仅有一种情况是必须指定该参数的：即想要C2S转SUS的情况，必须指定`-t sus`（否则默认转出来的是UGC）
+    > 注意：SUS与C2S/UGC的互转，目前是实验性的、功能尚不完善，可能有较多bug，如遇bug欢迎反馈
 - **`-o, --output`**：指定输出位置（可选）；不传入此参数时，文件将保存到“输入文件所在的目录”。
   - 会智能识别你传入的是目录还是文件，做智能的处理，将转谱结果输入到目录下或保存为文件。
   - 此外，还可以传入 `-` ，表示输出到stdout。
@@ -87,25 +91,21 @@ MuConvert "D:\charts\MyChart" -l 5,6 # 只转紫谱和白谱
 <details>
 <summary><strong>CHUNITHM转谱相关示例</strong></summary>
 
-**UGC/SUS → C2S**（默认输出同名 `.c2s`）
+**UGC → C2S**（默认输出同名 `.c2s`）
 
 ```shell
 MuConvert "D:\charts\Song\0003_00.ugc" # UGC -> C2S
-MuConvert "D:\charts\Song\0003_00.sus" # SUS -> C2S
 # 转谱结果与输入同目录，生成 0003_00.c2s
-
-MuConvert "D:\charts\Song\0003_00.ugc" -t sus # 也可 UGC直接 -> C2S
 ```
 
-**C2S → UGC / SUS**
+**C2S → UGC**
 
 ```shell
 MuConvert "D:\charts\Song\0003_00.c2s"
 # 默认同目录生成同名 .ugc
-
-MuConvert "D:\charts\Song\0003_00.c2s" -t sus
-# 需要 SUS 时须显式指定 -t sus（否则默认为 UGC）
 ```
+
+> C2S → SUS：`MuConvert "D:\charts\Song\0003_00.c2s" -t sus` （必须显式指定`-t sus`，否则默认为 UGC）
 
 </details>
 
@@ -159,13 +159,11 @@ return maidataText; // maidataText即为转谱结果
 // 首先使用File.ReadAllText等方法，将谱面整体读取为字符串
 var (c2sChart, alerts) = new C2sParser().Parse(c2sText); // 解析 C2S 谱面字符串
 var (ugcChart, alerts) = new UgcParser().Parse(ugcText); // 解析 UGC 谱面字符串
-var (susChart, alerts) = new SusParser().Parse(susText); // 解析 SUS 谱面字符串
-// 以上得到的c2sChart、ugcChart、susChart，都是ChuChart类型的谱面表示对象；
+// 以上得到的c2sChart、ugcChart，都是ChuChart类型的谱面表示对象；
 // alerts是解析过程中可能产生的警告信息等，建议打印出来。
 
 var (c2sText, alerts) = new C2sGenerator().Generate(ugcChart);   // UGC -> C2S
 var (ugcText, alerts) = new UgcGenerator().Generate(c2sChart);   // C2S -> UGC
-var (susText, alerts) = new SusGenerator().Generate(c2sChart);   // C2S -> SUS
 // 各种Generator的Generate方法，均接受 ChuChart（可将任一 Parser 产出的 ChuChart 互相传入）。
 // 同上，alerts是生成过程中可能产生的警告信息等，建议打印出来。
 ```
