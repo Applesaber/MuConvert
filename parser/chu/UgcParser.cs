@@ -14,7 +14,7 @@ namespace MuConvert.chu;
  */
 public class UgcParser: BaseChuParser
 {
-    private static int RSL = 480 * 4;
+    private int RSL = 480 * 4;
     private int Version = 8;
 
     public override (ChuChart, List<Alert>) Parse(string text)
@@ -332,7 +332,7 @@ public class UgcParser: BaseChuParser
         return idx;
     }
 
-    private static void ParseTapNote(string code, ChuNote note, List<Alert> alerts, int lineNum, ChuChart chart, bool isCHR)
+    private void ParseTapNote(string code, ChuNote note, List<Alert> alerts, int lineNum, ChuChart chart, bool isCHR)
     {
         note.Type = "TAP";
         ParseCellWidth(code, 1, note, alerts, lineNum, chart);
@@ -488,7 +488,7 @@ public class UgcParser: BaseChuParser
         return true;
     }
 
-    private static void ParseCellWidth(string code, int startIdx, ChuNote note, List<Alert> alerts, int lineNum, ChuChart chart)
+    private void ParseCellWidth(string code, int startIdx, ChuNote note, List<Alert> alerts, int lineNum, ChuChart chart)
     {
         if (code.Length > startIdx)
         {
@@ -579,7 +579,7 @@ public class UgcParser: BaseChuParser
     }
 
     // ReSharper disable once UnusedParameter.Local
-    private static string FormatNoteRef(ChuNote note, string code)
+    private string FormatNoteRef(ChuNote note, string code)
     {
         var (m, o) = Utils.BarAndTick(note.Time, RSL);
         return $"#{m}'{o}:{code}";

@@ -16,7 +16,7 @@ public class C2sGenerator : IGenerator<ChuChart>
         return (text, alerts);
     }
 
-    private static string Serialize(ChuChart chart, List<Alert> alerts)
+    private string Serialize(ChuChart chart, List<Alert> alerts)
     {
         chart.Sort();
         
@@ -68,7 +68,7 @@ public class C2sGenerator : IGenerator<ChuChart>
         return sb.ToString();
     }
 
-    private static List<string> allowedAirColors = ["DEF", "I"]; // TODO 搞清楚UGC里的'I'颜色，在C2S里，对应的字符串是什么
+    private static readonly List<string> allowedAirColors = ["DEF", "I"]; // TODO 搞清楚UGC里的'I'颜色，在C2S里，对应的字符串是什么
     private static string AirColorTag(ChuNote n)
     {
         if (allowedAirColors.Contains(n.Tag)) return n.Tag;

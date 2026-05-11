@@ -13,7 +13,7 @@ namespace MuConvert.chu;
  */
 public class C2sParser: BaseChuParser
 {
-    private static int RSL = 384;
+    private int RSL = 384;
     private static readonly HashSet<string> HeadTags = new(StringComparer.OrdinalIgnoreCase)
         { "VERSION", "MUSIC", "SEQUENCEID", "DIFFICULT", "LEVEL", "CREATOR", "BPM_DEF", "MET_DEF", "RESOLUTION", "CLK_DEF", "PROGJUDGE_BPM", "PROGJUDGE_AER", "TUTORIAL" };
     private static readonly HashSet<string> TimingTags = new(StringComparer.OrdinalIgnoreCase)
@@ -59,7 +59,7 @@ public class C2sParser: BaseChuParser
         return (chart, alerts);
     }
 
-    private static void ParseHeader(string[] p, ChuChart chart)
+    private void ParseHeader(string[] p, ChuChart chart)
     {
         var tag = p[0].ToUpperInvariant();
         switch (tag)
@@ -71,7 +71,7 @@ public class C2sParser: BaseChuParser
         }
     }
 
-    private static void ParseTiming(string[] p, ChuChart chart)
+    private void ParseTiming(string[] p, ChuChart chart)
     {
         var tag = p[0].ToUpperInvariant();
         switch (tag)

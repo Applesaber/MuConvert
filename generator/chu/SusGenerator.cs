@@ -6,7 +6,7 @@ namespace MuConvert.chu;
 
 public class SusGenerator : IGenerator<ChuChart>
 {
-    private static int RSL = 480 * 4;
+    private int RSL = 480 * 4;
 
     public (string, List<Alert>) Generate(ChuChart chart)
     {
@@ -15,7 +15,7 @@ public class SusGenerator : IGenerator<ChuChart>
         return (text, alerts);
     }
 
-    private static string Serialize(ChuChart sus)
+    private string Serialize(ChuChart sus)
     {
         sus.Sort();
         

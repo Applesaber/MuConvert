@@ -13,7 +13,7 @@ namespace MuConvert.chu;
  */
 public class SusParser: BaseChuParser
 {
-    private static int RSL = 480 * 4;
+    private int RSL = 480 * 4;
     
     private static readonly Dictionary<int, string> TypeMap = new()
     {
@@ -71,7 +71,7 @@ public class SusParser: BaseChuParser
                || content.StartsWith("REQUEST ");
     }
 
-    private static void ParseHeaderLine(string content, ChuChart chart, List<Alert> alerts, int lineNum)
+    private void ParseHeaderLine(string content, ChuChart chart, List<Alert> alerts, int lineNum)
     {
         if (content.StartsWith("TITLE "))
         {
@@ -103,7 +103,7 @@ public class SusParser: BaseChuParser
         }
     }
 
-    private static void ParseNoteLine(string content, ChuChart chart, List<Alert> alerts, int lineNum)
+    private void ParseNoteLine(string content, ChuChart chart, List<Alert> alerts, int lineNum)
     {
         var colonIdx = content.IndexOf(':');
         if (colonIdx < 0)
