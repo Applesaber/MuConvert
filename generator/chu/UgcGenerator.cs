@@ -27,7 +27,7 @@ public class UgcGenerator : IGenerator<ChuChart>
         if (!string.IsNullOrEmpty(ugc.Designer)) sb.AppendLine($"@DESIGN\t{ugc.Designer}");
         sb.AppendLine($"@DIFF\t{ugc.Difficulty}");
         sb.AppendLine($"@LEVEL\t{ugc.DisplayLevel}");
-        sb.AppendLine($"@CONST\t{ugc.Level:F5}");
+        sb.AppendLine(FormattableString.Invariant($"@CONST\t{ugc.Level:F5}"));
         sb.AppendLine($"@SONGID\t{ugc.MusicId}");
         sb.AppendLine($"@TICKS\t{RSL / 4}");
         foreach (var met in ugc.MetList)
@@ -38,14 +38,14 @@ public class UgcGenerator : IGenerator<ChuChart>
         foreach (var b in ugc.BpmList)
         {
             var (m, o) = Utils.BarAndTick(b.Time, RSL);
-            sb.AppendLine($"@BPM\t{m}'{o}\t{b.Bpm:F5}");
+            sb.AppendLine(FormattableString.Invariant($"@BPM\t{m}'{o}\t{b.Bpm:F5}"));
         }
         sb.AppendLine("@TIL\t0\t0'0\t1.00000");
 
         foreach (var s in ugc.SflList.OrderBy(x => x.Time)) 
         { 
             var (m, o) = Utils.BarAndTick(s.Time, RSL); 
-            sb.AppendLine($"@SPDMOD\t{m}'{o}\t{s.Multiplier:0.00000}");
+            sb.AppendLine(FormattableString.Invariant($"@SPDMOD\t{m}'{o}\t{s.Multiplier:0.00000}"));
         }
 
         sb.AppendLine("@MAINTIL\t0");

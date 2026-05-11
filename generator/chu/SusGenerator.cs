@@ -23,7 +23,7 @@ public class SusGenerator : IGenerator<ChuChart>
         if (!string.IsNullOrEmpty(sus.Title)) sb.AppendLine($"#TITLE \"{sus.Title}\"");
         if (!string.IsNullOrEmpty(sus.Artist)) sb.AppendLine($"#ARTIST \"{sus.Artist}\"");
         if (!string.IsNullOrEmpty(sus.Designer)) sb.AppendLine($"#DESIGNER \"{sus.Designer}\"");
-        sb.AppendLine($"#BPM_DEF {sus.StartBpm:F2}");
+        sb.AppendLine(FormattableString.Invariant($"#BPM_DEF {sus.StartBpm:F2}"));
         sb.AppendLine($"#REQUEST \"{RSL / 4}\"");
         sb.AppendLine();
 

@@ -29,7 +29,7 @@ public class C2sGenerator : IGenerator<ChuChart>
         sb.AppendLine("LEVEL\t0.0");
         sb.AppendLine($"CREATOR\t{chart.Designer}");
         var bpm_def = chart.BpmList.BPM_DEF();
-        sb.AppendLine($"BPM_DEF\t{bpm_def.Item1}\t{bpm_def.Item2}\t{bpm_def.Item3}\t{bpm_def.Item4}");
+        sb.AppendLine(FormattableString.Invariant($"BPM_DEF\t{bpm_def.Item1}\t{bpm_def.Item2}\t{bpm_def.Item3}\t{bpm_def.Item4}"));
         sb.AppendLine("MET_DEF\t4\t4");
         sb.AppendLine($"RESOLUTION\t{RSL}");
         sb.AppendLine($"CLK_DEF\t{RSL}");
@@ -41,7 +41,7 @@ public class C2sGenerator : IGenerator<ChuChart>
         foreach (var b in chart.BpmList)
         {
             var (m, o) = Utils.BarAndTick(b.Time, RSL);
-            sb.AppendLine($"BPM\t{m}\t{o}\t{b.Bpm:0.000}");
+            sb.AppendLine(FormattableString.Invariant($"BPM\t{m}\t{o}\t{b.Bpm:0.000}"));
         }
 
         foreach (var met in chart.MetList)
@@ -54,7 +54,7 @@ public class C2sGenerator : IGenerator<ChuChart>
         {
             var (m, o) = Utils.BarAndTick(s.Time, RSL);
             var durTicks = Utils.Tick(s.Duration, RSL);
-            sb.AppendLine($"SFL\t{m}\t{o}\t{durTicks}\t{s.Multiplier:0.000000}");
+            sb.AppendLine(FormattableString.Invariant($"SFL\t{m}\t{o}\t{durTicks}\t{s.Multiplier:0.000000}"));
         }
         sb.AppendLine();
 
@@ -114,11 +114,11 @@ public class C2sGenerator : IGenerator<ChuChart>
 
     private static string FormatAsdAsc(ChuNote n, int m, int o, int durTicks)
     {
-        return $"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{n.Height}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}\t{n.EndHeight}\t{AirColorTag(n)}";
+        return FormattableString.Invariant($"{n.Type}\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.TargetNote}\t{n.Height:0.#}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}\t{n.EndHeight:0.#}\t{AirColorTag(n)}");
     }
 
     private static string FormatAld(ChuNote n, int m, int o, int durTicks)
     {
-        return $"ALD\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.CrushInterval}\t{n.Height}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}\t{n.EndHeight}";
+        return FormattableString.Invariant($"ALD\t{m}\t{o}\t{n.Cell}\t{n.Width}\t{n.CrushInterval}\t{n.Height:0.#}\t{durTicks}\t{n.EndCell}\t{n.EndWidth}\t{n.EndHeight:0.#}");
     }
 }

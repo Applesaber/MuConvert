@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using MuConvert.generator;
 using MuConvert.utils;
@@ -188,7 +189,7 @@ GENERATED_BY	MuConvert v{8}
     protected void GenerateFileHead(StringBuilder result)
     {
         var bpmStatistics = chart.BpmList.BPM_DEF();
-        string head = string.Format(headTemplate, 
+        string head = string.Format(CultureInfo.InvariantCulture, headTemplate, 
             $"{MA2Version / 100}.{MA2Version % 100:D2}.00", IsUtage?1:0, 
             bpmStatistics.Item1, bpmStatistics.Item2,  bpmStatistics.Item3, bpmStatistics.Item4,
             RSL, RSL/4 * chart.ClockCount, Utils.AppVersion);
@@ -201,7 +202,7 @@ GENERATED_BY	MuConvert v{8}
         foreach (var bpm in chart.BpmList)
         {
             var (bar, tick) = BT(bpm.Time);
-            result.AppendLine($"BPM\t{bar}\t{tick}\t{bpm.Bpm:F3}");
+            result.AppendLine(FormattableString.Invariant($"BPM\t{bar}\t{tick}\t{bpm.Bpm:F3}"));
         }
         result.AppendLine($"MET\t0\t0\t4\t{chart.ClockCount}");
         result.AppendLine();
@@ -291,7 +292,7 @@ GENERATED_BY	MuConvert v{8}
         result.AppendLine($"TTM_SCR_ALL\t{theoryScore}");
         
         var score_sss = stats.WeightedNoteCount * 500; // 旧框扣除额外分
-        result.AppendLine($"TTM_SCR_S\t{Math.Ceiling(score_sss * 0.97 / 50) * 50}");
+        result.AppendLine(FormattableString.Invariant($"TTM_SCR_S\t{Math.Ceiling(score_sss * 0.97 / 50) * 50}"));
         result.AppendLine($"TTM_SCR_SS\t{score_sss}");
         result.AppendLine($"TTM_RAT_ACV\t{(long)theoryScore * 10000 / score_sss }"); // 用long避免溢出
         result.AppendLine();
