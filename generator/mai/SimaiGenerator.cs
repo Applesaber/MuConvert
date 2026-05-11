@@ -123,7 +123,7 @@ public class SimaiGenerator : IGenerator<MaiChart>
         }
         else
         { // 返回绝对时间
-            return $"[#{(decimal)duration.Seconds:0.####}]";
+            return FormattableString.Invariant($"[#{(decimal)duration.Seconds:0.####}]");
         }
     }
 
@@ -149,7 +149,7 @@ public class SimaiGenerator : IGenerator<MaiChart>
             {
                 var bpmChange = chart.BpmList[bpmIdx];
                 bpmIdx++;
-                buf.Add(new SimaiNote(bpmChange.Time, $"({bpmChange.Bpm:0.#######})", 0, true));
+                buf.Add(new SimaiNote(bpmChange.Time, FormattableString.Invariant($"({bpmChange.Bpm:0.#######})"), 0, true));
                 continue;
             }
 
@@ -197,7 +197,7 @@ public class SimaiGenerator : IGenerator<MaiChart>
                             forceAbsTime: nonStdWaitTime && Workaround_ForceUseAbsDurationForSlidesWithNonStandardWaitTime);
                         if (nonStdWaitTime)
                         { // 非标准等待时间的星星，应该加上等待时间标记。simai仅支持绝对时间的等待时间标记。
-                            durationStr = $"[{(decimal)slide.WaitTime.Seconds:0.####}##{durationStr[1..].TrimStart('#')}";
+                            durationStr = FormattableString.Invariant($"[{(decimal)slide.WaitTime.Seconds:0.####}##{durationStr[1..].TrimStart('#')}");
                         }
                         res += durationStr;
                         rollingTime += seg.Duration.Bar;

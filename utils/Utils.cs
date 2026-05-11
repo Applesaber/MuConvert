@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
+using System.Text;
 using Rationals;
 using L = MuConvert.Antlr.SimaiLexer;
 
@@ -27,6 +28,8 @@ public static class Utils
     public static BigInteger LCM(IEnumerable<BigInteger> values) => values.Aggregate(LCM);
     
     public static BigInteger Max(BigInteger a, BigInteger b) => a > b ? a : b;
+    
+    public static Rational Max(Rational a, Rational b) => a > b ? a : b;
     
     public static Rational Min(Rational a, Rational b) => a < b ? a : b;
     
@@ -64,9 +67,77 @@ public static class Utils
         if (min != null && r < min) r = min.Value;
         return r;
     }
+    
+    /**
+     * 把N进制的一位数转为int。(返回bool成功与否，通过out变量传递结果)
+     * 可以是从11到36进制数，（如常见的16进制数或UGC的36进制数），都是能用的。因为本质都是10以后按照ABCDE...的顺序排列，所以没区别。
+     */
+    public static bool TryHToI(char _char, out int result)
+    {
+        result = _char switch
+        {
+            >= '0' and <= '9' => _char - '0',
+            >= 'a' and <= 'z' => _char - 'a' + 10,
+            >= 'A' and <= 'Z' => _char - 'A' + 10,
+            _ => -1
+        };
+        return _char >= 0;
+    }
+    
+    /**
+     * 把N进制的一位数转为int。（直接返回int，如果转换失败抛异常）
+     * 可以是从11到36进制数，（如常见的16进制数或UGC的36进制数），都是能用的。因为本质都是10以后按照ABCDE...的顺序排列，所以没区别。
+     */
+    public static int HToI(char _char) =>
+        TryHToI(_char, out var i) ? i : throw new FormatException($"Cannot convert '{_char}' to int!");
+    
+    /**
+     * 把N进制的多位数转为int。(返回bool成功与否，通过out变量传递结果)
+     * N进制的N值需要传入，需要满足 N在[11,36]之间。
+     */
+    public static bool TryHToI(string str, int N, out int result)
+    {
+        result = 0;
+        foreach (var ch in str)
+        {
+            if (!TryHToI(ch, out var bit)) return false;
+            result = result * N + bit;
+        }
+        return true;
+    }
+    
+    /**
+     * 把N进制的多位数转为int。（直接返回int，如果转换失败抛异常）
+     * N进制的N值需要传入，需要满足 N在[11,36]之间。
+     */
+    public static int HToI(string str, int N) =>
+        TryHToI(str, N, out var i) ? i : throw new FormatException($"Cannot convert '{str}' to int!");
+
+    /**
+     * 把int转为N进制的字符串。（直接返回int，如果转换失败抛异常）
+     * N进制的N值需要传入，需要满足 N在[11,36]之间。
+     */
+    public static string IToH(int value, int N)
+    {
+        if (N is < 11 or > 36) throw new ArgumentOutOfRangeException(nameof(N), N, "N must be in [11, 36].");
+        if (value == 0) return "0";
+
+        var negative = value < 0;
+        value = Math.Abs(value);
+        var sb = new StringBuilder();
+        while (value > 0)
+        {
+            var d = value % N;
+            value /= N;
+            // 生成的时候先倒着生成字符数组，返回的时候统一reverse
+            sb.Append(d < 10 ? (char)('0' + d) : (char)('A' + (d - 10)));
+        }
+        if (negative) sb.Append('-');
+        return new string(sb.ToString().Reverse().ToArray());
+    }
 }
 
-internal static class ExtensionUtils
+public static class ExtensionUtils
 {
     internal static void Add<K, V>(this Dictionary<K, List<V>> dict, K key, V value) where K : notnull
     {
@@ -84,7 +155,7 @@ internal static class ExtensionUtils
     }
     
     // 工作范围仅限正数
-    public static Rational Ceil(this Rational r)
+    public static BigInteger Ceil(this Rational r)
     {
         if (r < 0) throw new ArgumentOutOfRangeException(nameof(r));
         return r.WholePart + (r.FractionPart == 0 ? 0 : 1);
@@ -104,6 +175,11 @@ internal static class ExtensionUtils
     public static Rational Sum(this IEnumerable<Rational> source)
     {
         return source.Aggregate(Rational.Zero, (acc, r) => acc + r);
+    }
+    
+    public static Rational Abs(this Rational r)
+    {
+        return r * r.Sign;
     }
     
     internal static Dictionary<K, V> RemoveRange<K, V>(this Dictionary<K, V> dict, IEnumerable<K> keys) where K : notnull
