@@ -177,6 +177,11 @@ public static class ExtensionUtils
         return source.Aggregate(Rational.Zero, (acc, r) => acc + r);
     }
     
+    public static Rational Abs(this Rational r)
+    {
+        return r * r.Sign;
+    }
+    
     internal static Dictionary<K, V> RemoveRange<K, V>(this Dictionary<K, V> dict, IEnumerable<K> keys) where K : notnull
     {
         foreach (var key in keys) dict.Remove(key);

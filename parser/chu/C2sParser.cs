@@ -55,6 +55,7 @@ public class C2sParser: BaseChuParser
         }
 
         FillAllPrevious(chart, alerts, _rawTargetNote);
+        chart.Sort();
         return (chart, alerts);
     }
 

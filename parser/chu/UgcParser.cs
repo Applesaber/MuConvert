@@ -49,6 +49,7 @@ public class UgcParser: BaseChuParser
 
         FinalizeUgcSflDurations(chart);
         FillAllPrevious(chart, alerts);
+        chart.Sort();
         return (chart, alerts);
     }
 

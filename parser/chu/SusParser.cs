@@ -58,6 +58,7 @@ public class SusParser: BaseChuParser
         }
 
         FillAllPrevious(chart, alerts);
+        chart.Sort();
         return (chart, alerts);
     }
 

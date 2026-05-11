@@ -74,19 +74,24 @@ public class Simai转MA2测试
             var exp = i < expectedLines.Length ? expectedLines[i] : "<EOF>";
             var act = i < actualLines.Length ? actualLines[i] : "<EOF>";
             var result = CompareLine(exp, act);
-            if (!result)
+            if (!result && i < actualLines.Length)
             {
                 // 尝试同一时刻的其他行有无相同的，如果有，交换之
                 var j = i + 1;
-                while (j < expectedLines.Length && IsSameTime(expectedLines[i], actualLines[j]))
+                while (j < expectedLines.Length)
                 {
                     if (CompareLine(expectedLines[j], act))
-                    {
+                    { // 匹配成功。交换之
                         (expectedLines[j], expectedLines[i]) = (expectedLines[i], expectedLines[j]);
                         result = true;
                         break;
                     }
-                    j++;
+                    else if (IsSameTime(expectedLines[j], act))
+                    { // 虽然暂时匹配失败，但是游标j还在，act同一时刻的窗口范围内。则应该允许继续比较。
+                        j++;
+                        continue;
+                    }
+                    else break; // 否则（匹配失败且j已经离开了同时刻的滑动窗口、说明未来也不再具有匹配上的可能性了），则中止匹配
                 }
             }
 
