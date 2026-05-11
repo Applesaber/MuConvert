@@ -67,6 +67,7 @@ public abstract class BaseChuParser : IParser<ChuChart>
     private static List<ChuNote> FilterPreviousCandidates(ChuNote cur, List<ChuNote> candidates)
     { // 注意：候选列表已满足“首尾相接”，这里仅做类型约束
         List<ChuNote> result = [];
+        candidates = candidates.Where(n => n != cur).ToList(); // 自己不能成为自己的candidate，防止自环
         
         if (IsSlide(cur.Type))
         { // Slide 的 previous：上一段 slide（找不到则说明是首段，则为 null）
@@ -75,7 +76,7 @@ public abstract class BaseChuParser : IParser<ChuChart>
         else if (IsAirSlide(cur.Type))
         { // Air Slide：优先匹配“上一段airslide”，其次匹配“上一段其他
             result.AddRange(candidates.Where(n => IsAirSlide(n.Type)));
-            result.AddRange(candidates.Where(n => IsLegalPreviousForAir(n.Type)));
+            result.AddRange(candidates.Where(n => !IsAirSlide(n.Type) && IsLegalPreviousForAir(n.Type)));
         }
         else if (IsAir(cur.Type) || IsAirHold(cur.Type))
         { // Air 系列：依附在一个“非广义Air”的音符上
